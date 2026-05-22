@@ -300,15 +300,17 @@ export default function Reservations() {
                             to {format(new Date(reservation.end_time), 'MMM d, yyyy h:mm a')}
                           </p>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`badge ${reservation.status === 'completed' ? 'badge-success' : 'badge-error'}`}>
-                            {reservation.status}
-                          </span>
-                          {reservation.status === 'cancelled' && reservation.notes && (
-                            <p className="text-xs text-gray-400 mt-1 max-w-xs truncate" title={reservation.notes}>
-                              {reservation.notes.includes('[') ? reservation.notes.match(/\[([^\]]+)\]/)?.[1] : ''}
-                            </p>
-                          )}
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1">
+                            <span className={`badge ${reservation.status === 'completed' ? 'badge-success' : 'badge-error'}`}>
+                              {reservation.status}
+                            </span>
+                            {reservation.status === 'cancelled' && reservation.notes && (
+                              <p className="text-[10px] text-gray-400 leading-tight" title={reservation.notes}>
+                                {reservation.notes.includes('[') ? reservation.notes.match(/\[([^\]]+)\]/)?.[1] : ''}
+                              </p>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                           <button onClick={() => handleDelete(reservation.id)} className="text-red-600 hover:text-red-700">Delete</button>
