@@ -54,6 +54,19 @@ export default function Reservations() {
   const reservations = reservationsData?.reservations || []
   const clusters = clustersData?.clusters || []
 
+  // Split reservations into categories
+  const activeReservations = reservations
+    .filter((r) => r.status === 'active')
+    .sort((a, b) => new Date(a.end_time).getTime() - new Date(b.end_time).getTime())
+  
+  const upcomingReservations = reservations
+    .filter((r) => r.status === 'scheduled')
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+  
+  const pastReservations = reservations
+    .filter((r) => r.status === 'completed' || r.status === 'cancelled')
+    .sort((a, b) => new Date(b.end_time).getTime() - new Date(a.end_time).getTime())
+
   const handleSubmit = async () => {
     if (!form.cluster_id || !form.title || !form.user_name || !form.start_time || !form.end_time) {
       toast.error('Please fill in all required fields')
@@ -118,103 +131,181 @@ export default function Reservations() {
           </button>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Reservation
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Cluster
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    User / Team
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {reservations.map((reservation) => (
-                  <tr key={reservation.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="h-10 w-1 rounded-full"
-                          style={{ backgroundColor: reservation.color }}
-                        />
-                        <div>
-                          <p className="font-medium text-gray-900">{reservation.title}</p>
-                          {reservation.description && (
-                            <p className="text-sm text-gray-500 truncate max-w-xs">
-                              {reservation.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {reservation.cluster_name || 'Unknown'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm text-gray-900">{reservation.user_name}</p>
-                      {reservation.team && (
-                        <p className="text-xs text-gray-500">{reservation.team}</p>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <p className="text-gray-900">
-                        {format(new Date(reservation.start_time), 'MMM d, yyyy')}
-                      </p>
-                      <p className="text-gray-500">
-                        {format(new Date(reservation.start_time), 'h:mm a')} -{' '}
-                        {format(new Date(reservation.end_time), 'h:mm a')}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`badge ${
-                          reservation.status === 'active'
-                            ? 'badge-success'
-                            : reservation.status === 'scheduled'
-                            ? 'badge-info'
-                            : reservation.status === 'cancelled'
-                            ? 'badge-error'
-                            : 'badge-warning'
-                        }`}
-                      >
-                        {reservation.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                      {reservation.status === 'scheduled' && (
-                        <button
-                          onClick={() => handleCancel(reservation.id)}
-                          className="text-orange-600 hover:text-orange-700 mr-3"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(reservation.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="space-y-6">
+          {/* Active Reservations */}
+          {activeReservations.length > 0 && (
+            <div className="card border-l-4 border-l-green-500 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 bg-green-50">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                  </span>
+                  <h2 className="text-lg font-semibold text-gray-900">Active Now ({activeReservations.length})</h2>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reservation</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cluster</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User / Team</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ends</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {activeReservations.map((reservation) => (
+                      <tr key={reservation.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-1 rounded-full" style={{ backgroundColor: reservation.color }} />
+                            <div>
+                              <p className="font-medium text-gray-900">{reservation.title}</p>
+                              {reservation.description && (
+                                <p className="text-sm text-gray-500 truncate max-w-xs">{reservation.description}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{reservation.cluster_name || 'Unknown'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <p className="text-sm text-gray-900">{reservation.user_name}</p>
+                          {reservation.team && <p className="text-xs text-gray-500">{reservation.team}</p>}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <p className="text-gray-900">{format(new Date(reservation.end_time), 'MMM d, yyyy')}</p>
+                          <p className="text-gray-500">{format(new Date(reservation.end_time), 'h:mm a')}</p>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                          <button onClick={() => handleDelete(reservation.id)} className="text-red-600 hover:text-red-700">Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Upcoming Reservations */}
+          <div className="card overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Upcoming ({upcomingReservations.length})</h2>
+              <p className="text-sm text-gray-500 mt-1">Scheduled reservations</p>
+            </div>
+            {upcomingReservations.length === 0 ? (
+              <div className="px-6 py-8 text-center text-gray-500">No upcoming reservations</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reservation</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cluster</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User / Team</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {upcomingReservations.map((reservation) => (
+                      <tr key={reservation.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-1 rounded-full" style={{ backgroundColor: reservation.color }} />
+                            <div>
+                              <p className="font-medium text-gray-900">{reservation.title}</p>
+                              {reservation.description && (
+                                <p className="text-sm text-gray-500 truncate max-w-xs">{reservation.description}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{reservation.cluster_name || 'Unknown'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <p className="text-sm text-gray-900">{reservation.user_name}</p>
+                          {reservation.team && <p className="text-xs text-gray-500">{reservation.team}</p>}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <p className="text-gray-900">{format(new Date(reservation.start_time), 'MMM d, yyyy')}</p>
+                          <p className="text-gray-500">
+                            {format(new Date(reservation.start_time), 'h:mm a')} - {format(new Date(reservation.end_time), 'h:mm a')}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                          <button onClick={() => handleCancel(reservation.id)} className="text-orange-600 hover:text-orange-700 mr-3">Cancel</button>
+                          <button onClick={() => handleDelete(reservation.id)} className="text-red-600 hover:text-red-700">Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Past Reservations */}
+          <div className="card overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Past ({pastReservations.length})</h2>
+              <p className="text-sm text-gray-500 mt-1">Completed and cancelled reservations</p>
+            </div>
+            {pastReservations.length === 0 ? (
+              <div className="px-6 py-8 text-center text-gray-500">No past reservations</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reservation</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cluster</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User / Team</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {pastReservations.map((reservation) => (
+                      <tr key={reservation.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-1 rounded-full opacity-50" style={{ backgroundColor: reservation.color }} />
+                            <div>
+                              <p className="font-medium text-gray-600">{reservation.title}</p>
+                              {reservation.description && (
+                                <p className="text-sm text-gray-400 truncate max-w-xs">{reservation.description}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{reservation.cluster_name || 'Unknown'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <p className="text-sm text-gray-600">{reservation.user_name}</p>
+                          {reservation.team && <p className="text-xs text-gray-400">{reservation.team}</p>}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <p className="text-gray-600">{format(new Date(reservation.start_time), 'MMM d, yyyy')}</p>
+                          <p className="text-gray-400">
+                            {format(new Date(reservation.start_time), 'h:mm a')} - {format(new Date(reservation.end_time), 'h:mm a')}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`badge ${reservation.status === 'completed' ? 'badge-success' : 'badge-error'}`}>
+                            {reservation.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                          <button onClick={() => handleDelete(reservation.id)} className="text-red-600 hover:text-red-700">Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
