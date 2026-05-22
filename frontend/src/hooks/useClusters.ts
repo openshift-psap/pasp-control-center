@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { clusterApi } from '../services/api'
-import type { Cluster, ClusterStatus } from '../types'
+import type { Cluster, ClusterStatus, ClusterTopology, OcpDetails, Operator, WorkloadsResponse } from '../types'
 import toast from 'react-hot-toast'
 
 export function useClusters(activeOnly = false) {
@@ -104,5 +104,41 @@ export function useUploadKubeconfig() {
     onError: (error: Error) => {
       toast.error(`Failed to upload kubeconfig: ${error.message}`)
     },
+  })
+}
+
+export function useClusterTopology(id: string) {
+  return useQuery({
+    queryKey: ['clusterTopology', id],
+    queryFn: () => clusterApi.getTopology(id),
+    enabled: !!id,
+    staleTime: 60000,
+  })
+}
+
+export function useOcpDetails(id: string) {
+  return useQuery({
+    queryKey: ['ocpDetails', id],
+    queryFn: () => clusterApi.getOcpDetails(id),
+    enabled: !!id,
+    staleTime: 60000,
+  })
+}
+
+export function useClusterOperators(id: string) {
+  return useQuery({
+    queryKey: ['clusterOperators', id],
+    queryFn: () => clusterApi.getOperators(id),
+    enabled: !!id,
+    staleTime: 60000,
+  })
+}
+
+export function useClusterWorkloads(id: string, namespace?: string) {
+  return useQuery({
+    queryKey: ['clusterWorkloads', id, namespace],
+    queryFn: () => clusterApi.getWorkloads(id, namespace),
+    enabled: !!id,
+    staleTime: 30000,
   })
 }

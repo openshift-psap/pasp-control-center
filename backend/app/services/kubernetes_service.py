@@ -178,6 +178,289 @@ class KubernetesService:
         except Exception:
             return False
 
+    def get_topology(self) -> Dict[str, Any]:
+        """Get cluster topology with detailed node information for visualization."""
+        try:
+            nodes = self.core_v1.list_node()
+            pods = self.core_v1.list_pod_for_all_namespaces()
+            
+            # Group pods by node
+            pods_by_node = {}
+            for pod in pods.items:
+                node_name = pod.spec.node_name
+                if node_name:
+                    if node_name not in pods_by_node:
+                        pods_by_node[node_name] = []
+                    pods_by_node[node_name].append({
+                        "name": pod.metadata.name,
+                        "namespace": pod.metadata.namespace,
+                        "phase": pod.status.phase,
+                    })
+            
+            topology_nodes = []
+            control_plane_nodes = []
+            worker_nodes = []
+            infra_nodes = []
+            
+            for node in nodes.items:
+                roles = self._get_node_roles(node)
+                labels = node.metadata.labels or {}
+                
+                # Parse instance type and zone from labels
+                instance_type = labels.get("node.kubernetes.io/instance-type", 
+                                          labels.get("beta.kubernetes.io/instance-type", "unknown"))
+                zone = labels.get("topology.kubernetes.io/zone",
+                                 labels.get("failure-domain.beta.kubernetes.io/zone", "unknown"))
+                region = labels.get("topology.kubernetes.io/region",
+                                   labels.get("failure-domain.beta.kubernetes.io/region", "unknown"))
+                
+                node_info = {
+                    "name": node.metadata.name,
+                    "status": self._get_node_status(node),
+                    "roles": roles,
+                    "cpu": node.status.capacity.get("cpu", "0"),
+                    "memory": node.status.capacity.get("memory", "0"),
+                    "memory_gb": round(self._parse_memory(node.status.capacity.get("memory", "0")) / (1024**3), 1),
+                    "gpu": node.status.capacity.get("nvidia.com/gpu", "0"),
+                    "instance_type": instance_type,
+                    "zone": zone,
+                    "region": region,
+                    "pod_count": len(pods_by_node.get(node.metadata.name, [])),
+                    "os_image": node.status.node_info.os_image if node.status.node_info else "unknown",
+                    "kernel_version": node.status.node_info.kernel_version if node.status.node_info else "unknown",
+                    "container_runtime": node.status.node_info.container_runtime_version if node.status.node_info else "unknown",
+                    "kubelet_version": node.status.node_info.kubelet_version if node.status.node_info else "unknown",
+                    "architecture": node.status.node_info.architecture if node.status.node_info else "unknown",
+                    "internal_ip": self._get_node_ip(node, "InternalIP"),
+                    "external_ip": self._get_node_ip(node, "ExternalIP"),
+                }
+                
+                topology_nodes.append(node_info)
+                
+                if "master" in roles or "control-plane" in roles:
+                    control_plane_nodes.append(node_info)
+                elif "infra" in roles:
+                    infra_nodes.append(node_info)
+                else:
+                    worker_nodes.append(node_info)
+            
+            return {
+                "nodes": topology_nodes,
+                "control_plane": control_plane_nodes,
+                "workers": worker_nodes,
+                "infra": infra_nodes,
+                "total_nodes": len(topology_nodes),
+                "zones": list(set(n["zone"] for n in topology_nodes if n["zone"] != "unknown")),
+            }
+        except Exception as e:
+            logger.error(f"Error getting topology: {e}")
+            return {"nodes": [], "error": str(e)}
+
+    def _get_node_ip(self, node, ip_type: str) -> Optional[str]:
+        """Get node IP address of specified type."""
+        if node.status.addresses:
+            for addr in node.status.addresses:
+                if addr.type == ip_type:
+                    return addr.address
+        return None
+
+    def get_ocp_details(self) -> Dict[str, Any]:
+        """Get OpenShift-specific cluster details."""
+        try:
+            custom_api = client.CustomObjectsApi(self._api_client)
+            
+            ocp_details = {
+                "cluster_version": None,
+                "cluster_id": None,
+                "platform": None,
+                "infrastructure": None,
+                "network_type": None,
+                "ingress_domain": None,
+                "update_available": False,
+                "available_updates": [],
+            }
+            
+            # Get ClusterVersion
+            try:
+                cv = custom_api.get_cluster_custom_object(
+                    group="config.openshift.io",
+                    version="v1",
+                    plural="clusterversions",
+                    name="version"
+                )
+                ocp_details["cluster_version"] = cv.get("status", {}).get("desired", {}).get("version")
+                ocp_details["cluster_id"] = cv.get("spec", {}).get("clusterID")
+                
+                # Check for available updates
+                available = cv.get("status", {}).get("availableUpdates", [])
+                if available:
+                    ocp_details["update_available"] = True
+                    ocp_details["available_updates"] = [u.get("version") for u in available[:5]]
+                
+                # Get conditions
+                conditions = cv.get("status", {}).get("conditions", [])
+                ocp_details["conditions"] = [
+                    {"type": c.get("type"), "status": c.get("status"), "message": c.get("message", "")[:100]}
+                    for c in conditions
+                ]
+            except Exception as e:
+                logger.warning(f"Could not get ClusterVersion: {e}")
+            
+            # Get Infrastructure
+            try:
+                infra = custom_api.get_cluster_custom_object(
+                    group="config.openshift.io",
+                    version="v1",
+                    plural="infrastructures",
+                    name="cluster"
+                )
+                ocp_details["platform"] = infra.get("status", {}).get("platform")
+                ocp_details["infrastructure"] = infra.get("status", {}).get("infrastructureName")
+                ocp_details["api_server_url"] = infra.get("status", {}).get("apiServerURL")
+                ocp_details["api_server_internal"] = infra.get("status", {}).get("apiServerInternalURI")
+            except Exception as e:
+                logger.warning(f"Could not get Infrastructure: {e}")
+            
+            # Get Network config
+            try:
+                network = custom_api.get_cluster_custom_object(
+                    group="config.openshift.io",
+                    version="v1",
+                    plural="networks",
+                    name="cluster"
+                )
+                ocp_details["network_type"] = network.get("status", {}).get("networkType")
+                ocp_details["cluster_network"] = network.get("status", {}).get("clusterNetwork", [])
+                ocp_details["service_network"] = network.get("status", {}).get("serviceNetwork", [])
+            except Exception as e:
+                logger.warning(f"Could not get Network: {e}")
+            
+            # Get Ingress
+            try:
+                ingress = custom_api.get_cluster_custom_object(
+                    group="config.openshift.io",
+                    version="v1",
+                    plural="ingresses",
+                    name="cluster"
+                )
+                ocp_details["ingress_domain"] = ingress.get("spec", {}).get("domain")
+            except Exception as e:
+                logger.warning(f"Could not get Ingress: {e}")
+            
+            return ocp_details
+        except Exception as e:
+            logger.error(f"Error getting OCP details: {e}")
+            return {"error": str(e)}
+
+    def get_operators(self) -> List[Dict[str, Any]]:
+        """Get installed operators (ClusterServiceVersions)."""
+        try:
+            custom_api = client.CustomObjectsApi(self._api_client)
+            
+            operators = []
+            
+            # Get ClusterServiceVersions from all namespaces
+            try:
+                csvs = custom_api.list_cluster_custom_object(
+                    group="operators.coreos.com",
+                    version="v1alpha1",
+                    plural="clusterserviceversions"
+                )
+                
+                seen = set()
+                for csv in csvs.get("items", []):
+                    name = csv.get("spec", {}).get("displayName") or csv.get("metadata", {}).get("name")
+                    if name in seen:
+                        continue
+                    seen.add(name)
+                    
+                    operators.append({
+                        "name": name,
+                        "namespace": csv.get("metadata", {}).get("namespace"),
+                        "version": csv.get("spec", {}).get("version"),
+                        "phase": csv.get("status", {}).get("phase"),
+                        "display_name": csv.get("spec", {}).get("displayName"),
+                        "description": (csv.get("spec", {}).get("description") or "")[:200],
+                        "provider": csv.get("spec", {}).get("provider", {}).get("name"),
+                    })
+            except Exception as e:
+                logger.warning(f"Could not get CSVs: {e}")
+            
+            return sorted(operators, key=lambda x: x.get("name", ""))
+        except Exception as e:
+            logger.error(f"Error getting operators: {e}")
+            return []
+
+    def get_workloads(self, namespace: Optional[str] = None) -> Dict[str, Any]:
+        """Get pods and deployments with node information."""
+        try:
+            pods_list = []
+            deployments_list = []
+            
+            # Get pods
+            if namespace:
+                pods = self.core_v1.list_namespaced_pod(namespace)
+            else:
+                pods = self.core_v1.list_pod_for_all_namespaces()
+            
+            for pod in pods.items:
+                # Skip system pods for cleaner view unless specifically requested
+                ns = pod.metadata.namespace
+                if not namespace and ns in ["kube-system", "openshift-kube-scheduler", 
+                                             "openshift-kube-controller-manager", 
+                                             "openshift-kube-apiserver", "openshift-etcd"]:
+                    continue
+                
+                pods_list.append({
+                    "name": pod.metadata.name,
+                    "namespace": ns,
+                    "node": pod.spec.node_name,
+                    "phase": pod.status.phase,
+                    "ip": pod.status.pod_ip,
+                    "containers": [c.name for c in pod.spec.containers],
+                    "restarts": sum(cs.restart_count for cs in (pod.status.container_statuses or []) if cs.restart_count),
+                    "created": pod.metadata.creation_timestamp.isoformat() if pod.metadata.creation_timestamp else None,
+                })
+            
+            # Get deployments
+            apps_v1 = client.AppsV1Api(self._api_client)
+            if namespace:
+                deployments = apps_v1.list_namespaced_deployment(namespace)
+            else:
+                deployments = apps_v1.list_deployment_for_all_namespaces()
+            
+            for dep in deployments.items:
+                ns = dep.metadata.namespace
+                if not namespace and ns.startswith("openshift-"):
+                    continue
+                    
+                deployments_list.append({
+                    "name": dep.metadata.name,
+                    "namespace": ns,
+                    "replicas": dep.spec.replicas,
+                    "ready_replicas": dep.status.ready_replicas or 0,
+                    "available_replicas": dep.status.available_replicas or 0,
+                })
+            
+            # Group pods by node for visualization
+            pods_by_node = {}
+            for pod in pods_list:
+                node = pod.get("node") or "unscheduled"
+                if node not in pods_by_node:
+                    pods_by_node[node] = []
+                pods_by_node[node].append(pod)
+            
+            return {
+                "pods": pods_list[:100],  # Limit for performance
+                "deployments": deployments_list[:50],
+                "pods_by_node": pods_by_node,
+                "total_pods": len(pods_list),
+                "total_deployments": len(deployments_list),
+            }
+        except Exception as e:
+            logger.error(f"Error getting workloads: {e}")
+            return {"pods": [], "deployments": [], "error": str(e)}
+
     @staticmethod
     def parse_kubeconfig(content: str) -> Dict[str, Any]:
         try:

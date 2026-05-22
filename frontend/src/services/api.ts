@@ -85,6 +85,26 @@ export const clusterApi = {
     const { data } = await api.post('/clusters/test-credentials', credentials)
     return data
   },
+
+  getTopology: async (id: string): Promise<ClusterTopology> => {
+    const { data } = await api.get(`/clusters/${id}/topology`)
+    return data
+  },
+
+  getOcpDetails: async (id: string): Promise<OcpDetails> => {
+    const { data } = await api.get(`/clusters/${id}/ocp-details`)
+    return data
+  },
+
+  getOperators: async (id: string): Promise<{ operators: Operator[]; total: number }> => {
+    const { data } = await api.get(`/clusters/${id}/operators`)
+    return data
+  },
+
+  getWorkloads: async (id: string, namespace?: string): Promise<WorkloadsResponse> => {
+    const { data } = await api.get(`/clusters/${id}/workloads`, { params: { namespace } })
+    return data
+  },
 }
 
 export const reservationApi = {

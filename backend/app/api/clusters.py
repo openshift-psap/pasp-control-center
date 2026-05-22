@@ -214,6 +214,99 @@ async def login_with_credentials(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/{cluster_id}/topology")
+async def get_cluster_topology(
+    cluster_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get cluster topology for visualization."""
+    service = ClusterService(db)
+    cluster = await service.get_cluster(cluster_id)
+    
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    
+    if not cluster.kubeconfig_path:
+        raise HTTPException(status_code=400, detail="Cluster has no kubeconfig configured")
+    
+    try:
+        k8s_service = KubernetesService(cluster.kubeconfig_path)
+        topology = k8s_service.get_topology()
+        return topology
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{cluster_id}/ocp-details")
+async def get_ocp_details(
+    cluster_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get OpenShift-specific cluster details."""
+    service = ClusterService(db)
+    cluster = await service.get_cluster(cluster_id)
+    
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    
+    if not cluster.kubeconfig_path:
+        raise HTTPException(status_code=400, detail="Cluster has no kubeconfig configured")
+    
+    try:
+        k8s_service = KubernetesService(cluster.kubeconfig_path)
+        ocp_details = k8s_service.get_ocp_details()
+        return ocp_details
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{cluster_id}/operators")
+async def get_cluster_operators(
+    cluster_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get installed operators."""
+    service = ClusterService(db)
+    cluster = await service.get_cluster(cluster_id)
+    
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    
+    if not cluster.kubeconfig_path:
+        raise HTTPException(status_code=400, detail="Cluster has no kubeconfig configured")
+    
+    try:
+        k8s_service = KubernetesService(cluster.kubeconfig_path)
+        operators = k8s_service.get_operators()
+        return {"operators": operators, "total": len(operators)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{cluster_id}/workloads")
+async def get_cluster_workloads(
+    cluster_id: str,
+    namespace: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get pods and deployments with node information."""
+    service = ClusterService(db)
+    cluster = await service.get_cluster(cluster_id)
+    
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    
+    if not cluster.kubeconfig_path:
+        raise HTTPException(status_code=400, detail="Cluster has no kubeconfig configured")
+    
+    try:
+        k8s_service = KubernetesService(cluster.kubeconfig_path)
+        workloads = k8s_service.get_workloads(namespace)
+        return workloads
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/test-credentials")
 async def test_credentials(credentials: CredentialsLogin):
     """

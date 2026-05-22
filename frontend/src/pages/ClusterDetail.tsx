@@ -7,6 +7,13 @@ import {
   ServerStackIcon,
   CpuChipIcon,
   CircleStackIcon,
+  CubeIcon,
+  Square3Stack3DIcon,
+  GlobeAltIcon,
+  ShieldCheckIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline'
 import { useDropzone } from 'react-dropzone'
 import {
@@ -14,17 +21,307 @@ import {
   useClusterStatus,
   useRefreshClusterStatus,
   useUploadKubeconfig,
+  useClusterTopology,
+  useOcpDetails,
+  useClusterOperators,
+  useClusterWorkloads,
 } from '../hooks/useClusters'
 import { useCurrentClusterUser } from '../hooks/useReservations'
 import { format } from 'date-fns'
+import clsx from 'clsx'
+import type { TopologyNode, PodInfo } from '../types'
+
+function TopologyVisualization({ 
+  controlPlane, 
+  workers, 
+  infra,
+  zones 
+}: { 
+  controlPlane: TopologyNode[]
+  workers: TopologyNode[]
+  infra: TopologyNode[]
+  zones: string[]
+}) {
+  const [selectedNode, setSelectedNode] = useState<TopologyNode | null>(null)
+
+  const NodeCard = ({ node, color }: { node: TopologyNode; color: string }) => (
+    <div
+      onClick={() => setSelectedNode(selectedNode?.name === node.name ? null : node)}
+      className={clsx(
+        'p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md',
+        selectedNode?.name === node.name ? 'ring-2 ring-primary-500' : '',
+        node.status === 'Ready' ? `border-${color}-300 bg-${color}-50` : 'border-red-300 bg-red-50'
+      )}
+      style={{
+        borderColor: node.status === 'Ready' ? undefined : '#fca5a5',
+        backgroundColor: node.status === 'Ready' ? undefined : '#fef2f2',
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <div className={clsx(
+          'h-3 w-3 rounded-full',
+          node.status === 'Ready' ? 'bg-green-500' : 'bg-red-500'
+        )} />
+        <span className="font-medium text-sm truncate" title={node.name}>
+          {node.name.length > 20 ? `${node.name.slice(0, 20)}...` : node.name}
+        </span>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-600">
+        <div title="CPU">
+          <span className="font-semibold">{node.cpu}</span> CPU
+        </div>
+        <div title="Memory">
+          <span className="font-semibold">{node.memory_gb}</span> GB
+        </div>
+        <div title="GPU">
+          <span className="font-semibold">{node.gpu}</span> GPU
+        </div>
+      </div>
+      <div className="mt-1 text-xs text-gray-500">
+        {node.pod_count} pods
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-center gap-4 text-sm">
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full bg-purple-500" />
+          <span>Control Plane ({controlPlane.length})</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full bg-blue-500" />
+          <span>Workers ({workers.length})</span>
+        </div>
+        {infra.length > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-orange-500" />
+            <span>Infra ({infra.length})</span>
+          </div>
+        )}
+      </div>
+
+      <div className="relative">
+        {/* API Server in center */}
+        <div className="flex justify-center mb-6">
+          <div className="bg-gray-900 text-white px-6 py-3 rounded-xl shadow-lg">
+            <div className="flex items-center gap-2">
+              <GlobeAltIcon className="h-5 w-5" />
+              <span className="font-semibold">API Server</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Control Plane Nodes */}
+        {controlPlane.length > 0 && (
+          <div className="mb-6">
+            <h4 className="text-sm font-medium text-gray-500 mb-3 text-center">Control Plane</h4>
+            <div className="flex flex-wrap justify-center gap-3">
+              {controlPlane.map((node) => (
+                <div key={node.name} className="w-48">
+                  <NodeCard node={node} color="purple" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Connection line */}
+        <div className="flex justify-center my-4">
+          <div className="h-8 w-px bg-gray-300" />
+        </div>
+
+        {/* Worker Nodes - grouped by zone if available */}
+        <div className="mb-6">
+          <h4 className="text-sm font-medium text-gray-500 mb-3 text-center">Worker Nodes</h4>
+          {zones.length > 1 ? (
+            <div className="space-y-4">
+              {zones.map((zone) => {
+                const zoneWorkers = workers.filter((w) => w.zone === zone)
+                if (zoneWorkers.length === 0) return null
+                return (
+                  <div key={zone} className="bg-gray-50 rounded-xl p-4">
+                    <h5 className="text-xs font-medium text-gray-400 mb-3">{zone}</h5>
+                    <div className="flex flex-wrap gap-3">
+                      {zoneWorkers.map((node) => (
+                        <div key={node.name} className="w-48">
+                          <NodeCard node={node} color="blue" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-wrap justify-center gap-3">
+              {workers.map((node) => (
+                <div key={node.name} className="w-48">
+                  <NodeCard node={node} color="blue" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Infra Nodes */}
+        {infra.length > 0 && (
+          <div>
+            <h4 className="text-sm font-medium text-gray-500 mb-3 text-center">Infrastructure</h4>
+            <div className="flex flex-wrap justify-center gap-3">
+              {infra.map((node) => (
+                <div key={node.name} className="w-48">
+                  <NodeCard node={node} color="orange" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Selected Node Details */}
+      {selectedNode && (
+        <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+          <h4 className="font-semibold text-gray-900 mb-3">{selectedNode.name}</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-gray-500">Status</p>
+              <p className={clsx(
+                'font-medium',
+                selectedNode.status === 'Ready' ? 'text-green-600' : 'text-red-600'
+              )}>{selectedNode.status}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Roles</p>
+              <p className="font-medium">{selectedNode.roles.join(', ')}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Instance Type</p>
+              <p className="font-medium">{selectedNode.instance_type}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Zone</p>
+              <p className="font-medium">{selectedNode.zone}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">CPU / Memory / GPU</p>
+              <p className="font-medium">{selectedNode.cpu} / {selectedNode.memory_gb}GB / {selectedNode.gpu}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Internal IP</p>
+              <p className="font-medium font-mono text-xs">{selectedNode.internal_ip || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">OS</p>
+              <p className="font-medium text-xs truncate" title={selectedNode.os_image}>{selectedNode.os_image}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Container Runtime</p>
+              <p className="font-medium text-xs">{selectedNode.container_runtime}</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function WorkloadsByNode({ 
+  podsByNode, 
+  nodes 
+}: { 
+  podsByNode: Record<string, PodInfo[]>
+  nodes: TopologyNode[]
+}) {
+  const [expandedNode, setExpandedNode] = useState<string | null>(null)
+
+  return (
+    <div className="space-y-3">
+      {nodes.map((node) => {
+        const pods = podsByNode[node.name] || []
+        const isExpanded = expandedNode === node.name
+        
+        return (
+          <div key={node.name} className="border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setExpandedNode(isExpanded ? null : node.name)}
+              className="w-full px-4 py-3 bg-gray-50 flex items-center justify-between hover:bg-gray-100 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <ServerStackIcon className="h-5 w-5 text-gray-400" />
+                <span className="font-medium text-gray-900">{node.name}</span>
+                <span className={clsx(
+                  'badge',
+                  node.status === 'Ready' ? 'badge-success' : 'badge-error'
+                )}>
+                  {node.status}
+                </span>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-500">{pods.length} pods</span>
+                <svg
+                  className={clsx('h-5 w-5 text-gray-400 transition-transform', isExpanded && 'rotate-180')}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+            
+            {isExpanded && pods.length > 0 && (
+              <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
+                {pods.slice(0, 20).map((pod) => (
+                  <div key={`${pod.namespace}/${pod.name}`} className="flex items-center justify-between text-sm py-1">
+                    <div className="flex items-center gap-2">
+                      <CubeIcon className="h-4 w-4 text-gray-400" />
+                      <span className="font-mono text-xs">{pod.namespace}/</span>
+                      <span className="truncate max-w-xs">{pod.name}</span>
+                    </div>
+                    <span className={clsx(
+                      'badge',
+                      pod.phase === 'Running' ? 'badge-success' : 
+                      pod.phase === 'Pending' ? 'badge-warning' : 'badge-error'
+                    )}>
+                      {pod.phase}
+                    </span>
+                  </div>
+                ))}
+                {pods.length > 20 && (
+                  <p className="text-xs text-gray-500 text-center pt-2">
+                    ...and {pods.length - 20} more pods
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {isExpanded && pods.length === 0 && (
+              <div className="p-4 text-sm text-gray-500 text-center">
+                No pods on this node
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function ClusterDetail() {
   const { id } = useParams<{ id: string }>()
   const [showUpload, setShowUpload] = useState(false)
+  const [activeTab, setActiveTab] = useState<'topology' | 'ocp' | 'operators' | 'workloads'>('topology')
 
   const { data: cluster, isLoading: clusterLoading } = useCluster(id!)
-  const { data: status, isLoading: statusLoading } = useClusterStatus(id!)
+  const { data: status } = useClusterStatus(id!)
   const { data: currentUser } = useCurrentClusterUser(id!)
+  const { data: topology, isLoading: topologyLoading } = useClusterTopology(id!)
+  const { data: ocpDetails, isLoading: ocpLoading } = useOcpDetails(id!)
+  const { data: operatorsData, isLoading: operatorsLoading } = useClusterOperators(id!)
+  const { data: workloads, isLoading: workloadsLoading } = useClusterWorkloads(id!)
+  
   const refreshStatus = useRefreshClusterStatus()
   const uploadKubeconfig = useUploadKubeconfig()
 
@@ -59,13 +356,17 @@ export default function ClusterDetail() {
     )
   }
 
+  const tabs = [
+    { id: 'topology', label: 'Topology', icon: Square3Stack3DIcon },
+    { id: 'ocp', label: 'OCP Details', icon: ShieldCheckIcon },
+    { id: 'operators', label: 'Operators', icon: CubeIcon },
+    { id: 'workloads', label: 'Workloads', icon: CircleStackIcon },
+  ] as const
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link
-          to="/clusters"
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-        >
+        <Link to="/clusters" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
           <ArrowLeftIcon className="h-5 w-5 text-gray-500" />
         </Link>
         <div className="flex-1">
@@ -75,10 +376,7 @@ export default function ClusterDetail() {
           )}
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={() => setShowUpload(!showUpload)}
-            className="btn-secondary"
-          >
+          <button onClick={() => setShowUpload(!showUpload)} className="btn-secondary">
             <CloudArrowUpIcon className="h-4 w-4 mr-2" />
             Upload Kubeconfig
           </button>
@@ -87,10 +385,8 @@ export default function ClusterDetail() {
             disabled={refreshStatus.isPending}
             className="btn-primary"
           >
-            <ArrowPathIcon
-              className={`h-4 w-4 mr-2 ${refreshStatus.isPending ? 'animate-spin' : ''}`}
-            />
-            Refresh Status
+            <ArrowPathIcon className={`h-4 w-4 mr-2 ${refreshStatus.isPending ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
         </div>
       </div>
@@ -101,44 +397,28 @@ export default function ClusterDetail() {
           <div
             {...getRootProps()}
             className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-              isDragActive
-                ? 'border-primary-500 bg-primary-50'
-                : 'border-gray-300 hover:border-gray-400'
+              isDragActive ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-gray-400'
             }`}
           >
             <input {...getInputProps()} />
             <CloudArrowUpIcon className="h-12 w-12 mx-auto text-gray-400" />
-            <p className="mt-2 text-sm text-gray-600">
-              Drop your kubeconfig file here, or click to browse
-            </p>
-            {uploadKubeconfig.isPending && (
-              <p className="mt-2 text-sm text-primary-600">Uploading...</p>
-            )}
+            <p className="mt-2 text-sm text-gray-600">Drop your kubeconfig file here, or click to browse</p>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
         <div className="card p-6">
           <div className="flex items-center gap-3">
-            <div
-              className={`h-12 w-12 rounded-xl flex items-center justify-center ${
-                cluster.status === 'healthy'
-                  ? 'bg-green-100'
-                  : cluster.status === 'error'
-                  ? 'bg-red-100'
-                  : 'bg-yellow-100'
-              }`}
-            >
-              <ServerStackIcon
-                className={`h-6 w-6 ${
-                  cluster.status === 'healthy'
-                    ? 'text-green-600'
-                    : cluster.status === 'error'
-                    ? 'text-red-600'
-                    : 'text-yellow-600'
-                }`}
-              />
+            <div className={clsx(
+              'h-12 w-12 rounded-xl flex items-center justify-center',
+              cluster.status === 'healthy' ? 'bg-green-100' : cluster.status === 'error' ? 'bg-red-100' : 'bg-yellow-100'
+            )}>
+              <ServerStackIcon className={clsx(
+                'h-6 w-6',
+                cluster.status === 'healthy' ? 'text-green-600' : cluster.status === 'error' ? 'text-red-600' : 'text-yellow-600'
+              )} />
             </div>
             <div>
               <p className="text-sm text-gray-500">Status</p>
@@ -167,6 +447,18 @@ export default function ClusterDetail() {
             <div>
               <p className="text-sm text-gray-500">GPUs</p>
               <p className="text-xl font-semibold text-gray-900">{cluster.gpu_count || '0'}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="card p-6">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-xl bg-orange-100 flex items-center justify-center">
+              <CubeIcon className="h-6 w-6 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Operators</p>
+              <p className="text-xl font-semibold text-gray-900">{operatorsData?.total || '...'}</p>
             </div>
           </div>
         </div>
@@ -200,153 +492,211 @@ export default function ClusterDetail() {
         </div>
       )}
 
+      {/* Tabs */}
       <div className="card">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Cluster Details</h2>
+        <div className="border-b border-gray-200">
+          <nav className="flex -mb-px">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={clsx(
+                  'flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors',
+                  activeTab === tab.id
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                )}
+              >
+                <tab.icon className="h-5 w-5" />
+                {tab.label}
+              </button>
+            ))}
+          </nav>
         </div>
+
         <div className="p-6">
-          <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          {/* Topology Tab */}
+          {activeTab === 'topology' && (
             <div>
-              <dt className="text-sm text-gray-500">Cluster ID</dt>
-              <dd className="mt-1 font-mono text-sm text-gray-900">{cluster.id}</dd>
+              {topologyLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400" />
+                </div>
+              ) : topology ? (
+                <TopologyVisualization
+                  controlPlane={topology.control_plane}
+                  workers={topology.workers}
+                  infra={topology.infra}
+                  zones={topology.zones}
+                />
+              ) : (
+                <p className="text-center text-gray-500">Could not load topology</p>
+              )}
             </div>
+          )}
+
+          {/* OCP Details Tab */}
+          {activeTab === 'ocp' && (
             <div>
-              <dt className="text-sm text-gray-500">Version</dt>
-              <dd className="mt-1 text-sm text-gray-900">{cluster.cluster_version || 'N/A'}</dd>
+              {ocpLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400" />
+                </div>
+              ) : ocpDetails ? (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">OpenShift Version</p>
+                      <p className="text-lg font-semibold text-gray-900">{ocpDetails.cluster_version || 'N/A'}</p>
+                      {ocpDetails.update_available && (
+                        <p className="text-xs text-orange-600 mt-1">Updates available</p>
+                      )}
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Platform</p>
+                      <p className="text-lg font-semibold text-gray-900">{ocpDetails.platform || 'N/A'}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Infrastructure</p>
+                      <p className="text-lg font-semibold text-gray-900 truncate" title={ocpDetails.infrastructure}>
+                        {ocpDetails.infrastructure || 'N/A'}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Network Type</p>
+                      <p className="text-lg font-semibold text-gray-900">{ocpDetails.network_type || 'N/A'}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Ingress Domain</p>
+                      <p className="text-lg font-semibold text-gray-900 truncate" title={ocpDetails.ingress_domain}>
+                        {ocpDetails.ingress_domain || 'N/A'}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Cluster ID</p>
+                      <p className="text-sm font-mono text-gray-700 truncate" title={ocpDetails.cluster_id}>
+                        {ocpDetails.cluster_id || 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {ocpDetails.conditions && ocpDetails.conditions.length > 0 && (
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-3">Cluster Conditions</h4>
+                      <div className="space-y-2">
+                        {ocpDetails.conditions.map((condition, idx) => (
+                          <div key={idx} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                            {condition.status === 'True' ? (
+                              <CheckCircleIcon className="h-5 w-5 text-green-500 mt-0.5" />
+                            ) : condition.status === 'False' ? (
+                              <XCircleIcon className="h-5 w-5 text-gray-400 mt-0.5" />
+                            ) : (
+                              <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500 mt-0.5" />
+                            )}
+                            <div>
+                              <p className="font-medium text-gray-900">{condition.type}</p>
+                              {condition.message && (
+                                <p className="text-sm text-gray-500">{condition.message}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {ocpDetails.available_updates && ocpDetails.available_updates.length > 0 && (
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-3">Available Updates</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {ocpDetails.available_updates.map((version) => (
+                          <span key={version} className="badge badge-info">{version}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500">Could not load OCP details</p>
+              )}
             </div>
-            <div className="sm:col-span-2">
-              <dt className="text-sm text-gray-500">API Server</dt>
-              <dd className="mt-1 font-mono text-sm text-gray-900 break-all">
-                {cluster.api_server_url || 'Not configured'}
-              </dd>
-            </div>
+          )}
+
+          {/* Operators Tab */}
+          {activeTab === 'operators' && (
             <div>
-              <dt className="text-sm text-gray-500">Last Health Check</dt>
-              <dd className="mt-1 text-sm text-gray-900">
-                {cluster.last_health_check
-                  ? format(new Date(cluster.last_health_check), 'MMM d, yyyy h:mm:ss a')
-                  : 'Never'}
-              </dd>
+              {operatorsLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400" />
+                </div>
+              ) : operatorsData?.operators ? (
+                <div className="space-y-3">
+                  {operatorsData.operators.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">No operators installed</p>
+                  ) : (
+                    operatorsData.operators.map((op) => (
+                      <div key={`${op.namespace}/${op.name}`} className="p-4 border border-gray-200 rounded-lg">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-medium text-gray-900">{op.display_name || op.name}</h4>
+                            <p className="text-sm text-gray-500">{op.namespace}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {op.version && (
+                              <span className="text-sm text-gray-600">{op.version}</span>
+                            )}
+                            <span className={clsx(
+                              'badge',
+                              op.phase === 'Succeeded' ? 'badge-success' : 
+                              op.phase === 'Failed' ? 'badge-error' : 'badge-warning'
+                            )}>
+                              {op.phase}
+                            </span>
+                          </div>
+                        </div>
+                        {op.description && (
+                          <p className="mt-2 text-sm text-gray-600 line-clamp-2">{op.description}</p>
+                        )}
+                        {op.provider && (
+                          <p className="mt-1 text-xs text-gray-400">Provider: {op.provider}</p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500">Could not load operators</p>
+              )}
             </div>
+          )}
+
+          {/* Workloads Tab */}
+          {activeTab === 'workloads' && (
             <div>
-              <dt className="text-sm text-gray-500">Created</dt>
-              <dd className="mt-1 text-sm text-gray-900">
-                {format(new Date(cluster.created_at), 'MMM d, yyyy h:mm a')}
-              </dd>
+              {workloadsLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400" />
+                </div>
+              ) : workloads && topology ? (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span>{workloads.total_pods} total pods</span>
+                    <span>•</span>
+                    <span>{workloads.total_deployments} deployments</span>
+                  </div>
+                  
+                  <WorkloadsByNode 
+                    podsByNode={workloads.pods_by_node} 
+                    nodes={topology.nodes}
+                  />
+                </div>
+              ) : (
+                <p className="text-center text-gray-500">Could not load workloads</p>
+              )}
             </div>
-          </dl>
+          )}
         </div>
       </div>
-
-      {status?.nodes && status.nodes.length > 0 && (
-        <div className="card">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Nodes</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Roles
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    CPU
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Memory
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    GPU
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {status.nodes.map((node) => (
-                  <tr key={node.name} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap font-mono text-sm text-gray-900">
-                      {node.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`badge ${
-                          node.status === 'Ready' ? 'badge-success' : 'badge-error'
-                        }`}
-                      >
-                        {node.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {node.roles.join(', ')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {node.cpu}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {node.memory}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {node.gpu}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {status?.resource_usage && (
-        <div className="card">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Resource Summary</h2>
-          </div>
-          <div className="p-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
-            <div>
-              <p className="text-sm text-gray-500">Total CPU Cores</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {status.resource_usage.total_cpu_cores}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Memory</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {status.resource_usage.total_memory_gb} GB
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total GPUs</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {status.resource_usage.total_gpus}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Running Pods</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {status.resource_usage.running_pods}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Pods</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {status.resource_usage.total_pods}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Nodes</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {status.resource_usage.total_nodes}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
