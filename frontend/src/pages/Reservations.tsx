@@ -1,4 +1,5 @@
 import { useState, Fragment } from 'react'
+import { Link } from 'react-router-dom'
 import { Dialog, Transition, Listbox } from '@headlessui/react'
 import {
   PlusIcon,
@@ -6,8 +7,22 @@ import {
   XMarkIcon,
   ChevronUpDownIcon,
   CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline'
-import { format } from 'date-fns'
+import { 
+  format, 
+  startOfMonth, 
+  endOfMonth, 
+  startOfWeek, 
+  endOfWeek, 
+  addDays, 
+  addMonths, 
+  subMonths,
+  isSameMonth,
+  isSameDay,
+  isToday,
+} from 'date-fns'
 import {
   useReservations,
   useCreateReservation,
@@ -16,6 +31,7 @@ import {
 } from '../hooks/useReservations'
 import { useClusters } from '../hooks/useClusters'
 import toast from 'react-hot-toast'
+import clsx from 'clsx'
 
 const COLORS = [
   { name: 'Blue', value: '#3B82F6' },
@@ -38,6 +54,113 @@ const initialFormState = {
   end_time: '',
   purpose: '',
   color: '#3B82F6',
+}
+
+function MiniCalendar({ reservations }: { reservations: Array<{ start_time: string; end_time: string; color: string; title: string; status: string }> }) {
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  
+  const monthStart = startOfMonth(currentMonth)
+  const monthEnd = endOfMonth(currentMonth)
+  const calendarStart = startOfWeek(monthStart)
+  const calendarEnd = endOfWeek(monthEnd)
+  
+  // Get all days in the calendar view
+  const days: Date[] = []
+  let day = calendarStart
+  while (day <= calendarEnd) {
+    days.push(day)
+    day = addDays(day, 1)
+  }
+  
+  // Check if a day has reservations
+  const getReservationsForDay = (date: Date) => {
+    return reservations.filter((r) => {
+      if (r.status === 'cancelled') return false
+      const start = new Date(r.start_time)
+      const end = new Date(r.end_time)
+      const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59)
+      return start <= dayEnd && end >= dayStart
+    })
+  }
+  
+  return (
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-4">
+        <button 
+          onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+          className="p-1 hover:bg-gray-100 rounded"
+        >
+          <ChevronLeftIcon className="h-5 w-5 text-gray-600" />
+        </button>
+        <h3 className="font-semibold text-gray-900">
+          {format(currentMonth, 'MMMM yyyy')}
+        </h3>
+        <button 
+          onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+          className="p-1 hover:bg-gray-100 rounded"
+        >
+          <ChevronRightIcon className="h-5 w-5 text-gray-600" />
+        </button>
+      </div>
+      
+      <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500 mb-2">
+        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+          <div key={d}>{d}</div>
+        ))}
+      </div>
+      
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((date, idx) => {
+          const dayReservations = getReservationsForDay(date)
+          const hasReservations = dayReservations.length > 0
+          const isCurrentMonth = isSameMonth(date, currentMonth)
+          
+          return (
+            <div
+              key={idx}
+              className={clsx(
+                'relative h-8 flex items-center justify-center text-sm rounded',
+                !isCurrentMonth && 'text-gray-300',
+                isCurrentMonth && !hasReservations && 'text-gray-700',
+                isToday(date) && 'font-bold',
+                hasReservations && isCurrentMonth && 'font-medium'
+              )}
+            >
+              <span className={clsx(
+                'w-7 h-7 flex items-center justify-center rounded-full',
+                isToday(date) && 'bg-primary-100 text-primary-700',
+              )}>
+                {format(date, 'd')}
+              </span>
+              {hasReservations && isCurrentMonth && (
+                <div className="absolute bottom-0.5 left-1/2 transform -translate-x-1/2 flex gap-0.5">
+                  {dayReservations.slice(0, 3).map((r, i) => (
+                    <div 
+                      key={i}
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: r.color }}
+                      title={r.title}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <Link 
+          to="/calendar" 
+          className="text-sm text-primary-600 hover:text-primary-700 flex items-center justify-center gap-1"
+        >
+          <CalendarDaysIcon className="h-4 w-4" />
+          Open Full Calendar
+        </Link>
+      </div>
+    </div>
+  )
 }
 
 export default function Reservations() {
@@ -118,7 +241,15 @@ export default function Reservations() {
         </button>
       </div>
 
-      {reservationsLoading ? (
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Main Content */}
+        <div className="flex-1 space-y-6">
+          {/* Mini Calendar - Mobile */}
+          <div className="lg:hidden">
+            <MiniCalendar reservations={reservations} />
+          </div>
+
+          {reservationsLoading ? (
         <div className="card p-12 text-center text-gray-500">Loading reservations...</div>
       ) : reservations.length === 0 ? (
         <div className="card p-12 text-center">
@@ -324,6 +455,15 @@ export default function Reservations() {
           </div>
         </div>
       )}
+        </div>
+
+        {/* Sidebar - Desktop */}
+        <div className="hidden lg:block w-72 flex-shrink-0">
+          <div className="sticky top-6">
+            <MiniCalendar reservations={reservations} />
+          </div>
+        </div>
+      </div>
 
       <Transition appear show={isOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50" onClose={() => setIsOpen(false)}>
