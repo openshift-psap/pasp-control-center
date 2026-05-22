@@ -80,10 +80,18 @@ export default function Dashboard() {
     .filter((r) => r.status === 'scheduled')
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
   
-  // Past reservations (completed or cancelled)
-  const pastReservations = (pastReservationsData?.reservations || [])
-    .filter((r) => r.status === 'completed' || r.status === 'cancelled')
-    .sort((a, b) => new Date(b.end_time).getTime() - new Date(a.end_time).getTime())
+  // Past reservations (completed or cancelled) - combine from both data sources
+  const allReservations = [
+    ...(pastReservationsData?.reservations || []),
+    ...(reservationsData?.reservations || [])
+  ]
+  // Dedupe by ID and filter for completed/cancelled
+  const pastReservations = allReservations
+    .filter((r, index, self) => 
+      (r.status === 'completed' || r.status === 'cancelled') &&
+      index === self.findIndex((t) => t.id === r.id)
+    )
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
 
   return (
     <div className="space-y-6">
