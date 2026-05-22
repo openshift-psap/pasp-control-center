@@ -218,6 +218,20 @@ class KubernetesService:
                 region = labels.get("topology.kubernetes.io/region",
                                    labels.get("failure-domain.beta.kubernetes.io/region", "unknown"))
                 
+                # Get GPU information from labels (populated by NVIDIA GPU Operator)
+                gpu_count = node.status.capacity.get("nvidia.com/gpu", "0")
+                gpu_product = labels.get("nvidia.com/gpu.product", "")
+                gpu_memory = labels.get("nvidia.com/gpu.memory", "")
+                
+                # Build GPU type string
+                if gpu_product:
+                    gpu_type = gpu_product.replace("-", " ")
+                    if gpu_memory:
+                        gpu_memory_gb = int(gpu_memory) // 1024 if gpu_memory.isdigit() else gpu_memory
+                        gpu_type = f"{gpu_type} ({gpu_memory_gb}GB)"
+                else:
+                    gpu_type = "N/A" if gpu_count == "0" else "Unknown GPU"
+                
                 node_info = {
                     "name": node.metadata.name,
                     "status": self._get_node_status(node),
@@ -225,7 +239,8 @@ class KubernetesService:
                     "cpu": node.status.capacity.get("cpu", "0"),
                     "memory": node.status.capacity.get("memory", "0"),
                     "memory_gb": round(self._parse_memory(node.status.capacity.get("memory", "0")) / (1024**3), 1),
-                    "gpu": node.status.capacity.get("nvidia.com/gpu", "0"),
+                    "gpu": gpu_count,
+                    "gpu_type": gpu_type,
                     "instance_type": instance_type,
                     "zone": zone,
                     "region": region,

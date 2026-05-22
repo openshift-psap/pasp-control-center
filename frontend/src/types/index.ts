@@ -96,6 +96,7 @@ export interface TopologyNode {
   memory: string
   memory_gb: number
   gpu: string
+  gpu_type: string
   instance_type: string
   zone: string
   region: string

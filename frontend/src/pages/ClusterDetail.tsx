@@ -347,10 +347,11 @@ function TopologyVisualization({
                   { label: 'Zone', value: selectedNode.zone || 'N/A' },
                   { label: 'CPU', value: selectedNode.cpu || 'N/A' },
                   { label: 'Memory', value: `${selectedNode.memory_gb || 0} GB` },
-                  { label: 'GPU', value: selectedNode.gpu || '0' },
+                  { label: 'GPU Count', value: selectedNode.gpu || '0' },
+                  { label: 'GPU Type', value: selectedNode.gpu_type || 'N/A', highlight: Number(selectedNode.gpu) > 0 },
                   { label: 'Pods', value: String(selectedNode.pod_count || 0) },
-                  { label: 'Internal IP', value: selectedNode.internal_ip || 'N/A', mono: true },
                   { label: 'Architecture', value: selectedNode.architecture || 'N/A' },
+                  { label: 'Internal IP', value: selectedNode.internal_ip || 'N/A', mono: true },
                   { label: 'OS Image', value: selectedNode.os_image || 'N/A', full: true },
                   { label: 'Container Runtime', value: selectedNode.container_runtime || 'N/A', full: true },
                   { label: 'Kubelet Version', value: selectedNode.kubelet_version || 'N/A', full: true },
@@ -358,14 +359,21 @@ function TopologyVisualization({
                   <div 
                     key={item.label} 
                     className={clsx(
-                      'p-3 bg-slate-800/50 rounded-xl border border-slate-700/30',
-                      item.full && 'sm:col-span-2'
+                      'p-3 rounded-xl border',
+                      item.full && 'sm:col-span-2',
+                      item.highlight 
+                        ? 'bg-emerald-500/10 border-emerald-500/30' 
+                        : 'bg-slate-800/50 border-slate-700/30'
                     )}
                   >
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{item.label}</p>
                     <p className={clsx(
-                      'text-sm text-white break-all',
-                      item.mono && 'font-mono text-xs'
+                      'text-[10px] uppercase tracking-wider mb-1',
+                      item.highlight ? 'text-emerald-400' : 'text-slate-500'
+                    )}>{item.label}</p>
+                    <p className={clsx(
+                      'text-sm break-all',
+                      item.mono && 'font-mono text-xs',
+                      item.highlight ? 'text-emerald-300 font-semibold' : 'text-white'
                     )}>{item.value}</p>
                   </div>
                 ))}
