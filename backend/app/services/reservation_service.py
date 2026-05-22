@@ -39,11 +39,11 @@ class ReservationService:
         )
         if conflicts:
             c = conflicts[0]
-            conflict_start = c.start_time.strftime("%b %d, %I:%M %p")
-            conflict_end = c.end_time.strftime("%I:%M %p")
+            conflict_start = c.start_time.strftime("%b %d, %Y %I:%M %p")
+            conflict_end = c.end_time.strftime("%b %d, %Y %I:%M %p")
             raise ValueError(
                 f"Time slot conflicts with '{c.title}' by {c.user_name} "
-                f"({conflict_start} - {conflict_end})"
+                f"({conflict_start} to {conflict_end})"
             )
         
         reservation = Reservation(
@@ -139,11 +139,11 @@ class ReservationService:
             )
             if conflicts:
                 c = conflicts[0]
-                conflict_start = c.start_time.strftime("%b %d, %I:%M %p")
-                conflict_end = c.end_time.strftime("%I:%M %p")
+                conflict_start = c.start_time.strftime("%b %d, %Y %I:%M %p")
+                conflict_end = c.end_time.strftime("%b %d, %Y %I:%M %p")
                 raise ValueError(
                     f"Time slot conflicts with '{c.title}' by {c.user_name} "
-                    f"({conflict_start} - {conflict_end})"
+                    f"({conflict_start} to {conflict_end})"
                 )
         
         for key, value in update_data.items():
