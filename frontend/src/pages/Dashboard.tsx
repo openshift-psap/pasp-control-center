@@ -1,0 +1,326 @@
+import { Link } from 'react-router-dom'
+import {
+  ServerStackIcon,
+  CalendarDaysIcon,
+  CpuChipIcon,
+  UserGroupIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  ClockIcon,
+} from '@heroicons/react/24/outline'
+import { useClusters } from '../hooks/useClusters'
+import { useReservations } from '../hooks/useReservations'
+import { format, startOfDay, endOfDay, addDays } from 'date-fns'
+
+export default function Dashboard() {
+  const { data: clustersData, isLoading: clustersLoading } = useClusters()
+  const { data: reservationsData, isLoading: reservationsLoading } = useReservations({
+    start_date: startOfDay(new Date()).toISOString(),
+    end_date: endOfDay(addDays(new Date(), 7)).toISOString(),
+  })
+
+  const clusters = clustersData?.clusters || []
+  const reservations = reservationsData?.reservations || []
+
+  const healthyClusters = clusters.filter((c) => c.status === 'healthy').length
+  const totalGpus = clusters.reduce((sum, c) => sum + parseInt(c.gpu_count || '0'), 0)
+  const totalNodes = clusters.reduce((sum, c) => sum + parseInt(c.node_count || '0'), 0)
+  const activeReservations = reservations.filter((r) => r.status === 'active').length
+
+  const stats = [
+    {
+      name: 'Total Clusters',
+      value: clusters.length,
+      icon: ServerStackIcon,
+      color: 'bg-blue-500',
+      href: '/clusters',
+    },
+    {
+      name: 'Healthy Clusters',
+      value: healthyClusters,
+      icon: CheckCircleIcon,
+      color: 'bg-green-500',
+      href: '/clusters',
+    },
+    {
+      name: 'Total GPUs',
+      value: totalGpus,
+      icon: CpuChipIcon,
+      color: 'bg-purple-500',
+      href: '/clusters',
+    },
+    {
+      name: 'Active Reservations',
+      value: activeReservations,
+      icon: UserGroupIcon,
+      color: 'bg-orange-500',
+      href: '/reservations',
+    },
+  ]
+
+  const todayReservations = reservations.filter((r) => {
+    const start = new Date(r.start_time)
+    const today = new Date()
+    return (
+      start.getDate() === today.getDate() &&
+      start.getMonth() === today.getMonth() &&
+      start.getFullYear() === today.getFullYear()
+    )
+  })
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Overview of your cluster infrastructure and reservations
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Link to="/clusters" className="btn-secondary">
+            View Clusters
+          </Link>
+          <Link to="/calendar" className="btn-primary">
+            <CalendarDaysIcon className="h-4 w-4 mr-2" />
+            Open Calendar
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <Link
+            key={stat.name}
+            to={stat.href}
+            className="card p-6 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center">
+              <div className={`${stat.color} rounded-lg p-3`}>
+                <stat.icon className="h-6 w-6 text-white" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">{stat.name}</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {clustersLoading || reservationsLoading ? '...' : stat.value}
+                </p>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="card">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Cluster Status</h2>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {clustersLoading ? (
+              <div className="px-6 py-8 text-center text-gray-500">Loading clusters...</div>
+            ) : clusters.length === 0 ? (
+              <div className="px-6 py-8 text-center">
+                <ServerStackIcon className="mx-auto h-12 w-12 text-gray-400" />
+                <p className="mt-2 text-sm text-gray-500">No clusters configured</p>
+                <Link to="/clusters" className="mt-3 inline-block text-sm text-primary-600 hover:text-primary-700">
+                  Add your first cluster
+                </Link>
+              </div>
+            ) : (
+              clusters.slice(0, 5).map((cluster) => (
+                <Link
+                  key={cluster.id}
+                  to={`/clusters/${cluster.id}`}
+                  className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`h-3 w-3 rounded-full ${
+                        cluster.status === 'healthy'
+                          ? 'bg-green-500'
+                          : cluster.status === 'error'
+                          ? 'bg-red-500'
+                          : 'bg-yellow-500'
+                      }`}
+                    />
+                    <div>
+                      <p className="font-medium text-gray-900">{cluster.name}</p>
+                      <p className="text-sm text-gray-500">
+                        {cluster.node_count || '?'} nodes · {cluster.gpu_count || '0'} GPUs
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`badge ${
+                      cluster.status === 'healthy'
+                        ? 'badge-success'
+                        : cluster.status === 'error'
+                        ? 'badge-error'
+                        : 'badge-warning'
+                    }`}
+                  >
+                    {cluster.status}
+                  </span>
+                </Link>
+              ))
+            )}
+          </div>
+          {clusters.length > 5 && (
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
+              <Link to="/clusters" className="text-sm text-primary-600 hover:text-primary-700">
+                View all {clusters.length} clusters →
+              </Link>
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Today's Reservations</h2>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {reservationsLoading ? (
+              <div className="px-6 py-8 text-center text-gray-500">Loading reservations...</div>
+            ) : todayReservations.length === 0 ? (
+              <div className="px-6 py-8 text-center">
+                <CalendarDaysIcon className="mx-auto h-12 w-12 text-gray-400" />
+                <p className="mt-2 text-sm text-gray-500">No reservations today</p>
+                <Link to="/reservations" className="mt-3 inline-block text-sm text-primary-600 hover:text-primary-700">
+                  Create a reservation
+                </Link>
+              </div>
+            ) : (
+              todayReservations.slice(0, 5).map((reservation) => (
+                <div
+                  key={reservation.id}
+                  className="flex items-center justify-between px-6 py-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="h-10 w-1 rounded-full"
+                      style={{ backgroundColor: reservation.color }}
+                    />
+                    <div>
+                      <p className="font-medium text-gray-900">{reservation.title}</p>
+                      <p className="text-sm text-gray-500">
+                        {reservation.cluster_name} · {reservation.user_name}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-900">
+                      {format(new Date(reservation.start_time), 'h:mm a')}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {format(new Date(reservation.end_time), 'h:mm a')}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          {todayReservations.length > 5 && (
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
+              <Link to="/calendar" className="text-sm text-primary-600 hover:text-primary-700">
+                View all reservations →
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Upcoming Reservations</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Reservation
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Cluster
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  User
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Time
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {reservationsLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    Loading...
+                  </td>
+                </tr>
+              ) : reservations.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    No upcoming reservations
+                  </td>
+                </tr>
+              ) : (
+                reservations.slice(0, 10).map((reservation) => (
+                  <tr key={reservation.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="h-8 w-1 rounded-full"
+                          style={{ backgroundColor: reservation.color }}
+                        />
+                        <span className="font-medium text-gray-900">{reservation.title}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {reservation.cluster_name || 'Unknown'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <p className="text-sm text-gray-900">{reservation.user_name}</p>
+                        {reservation.team && (
+                          <p className="text-xs text-gray-500">{reservation.team}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div>
+                        <p>{format(new Date(reservation.start_time), 'MMM d, yyyy')}</p>
+                        <p className="text-xs">
+                          {format(new Date(reservation.start_time), 'h:mm a')} -{' '}
+                          {format(new Date(reservation.end_time), 'h:mm a')}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`badge ${
+                          reservation.status === 'active'
+                            ? 'badge-success'
+                            : reservation.status === 'scheduled'
+                            ? 'badge-info'
+                            : reservation.status === 'cancelled'
+                            ? 'badge-error'
+                            : 'badge-warning'
+                        }`}
+                      >
+                        {reservation.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}

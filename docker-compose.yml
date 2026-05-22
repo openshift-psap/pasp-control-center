@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pasp-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./kubeconfigs:/app/kubeconfigs
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./data/pasp_control_center.db
+      - KUBECONFIG_STORAGE_PATH=/app/kubeconfigs
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - MLFLOW_BASE_URL=${MLFLOW_BASE_URL:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pasp-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  data:
+  kubeconfigs:
