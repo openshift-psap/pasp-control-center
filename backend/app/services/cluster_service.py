@@ -127,9 +127,27 @@ class ClusterService:
         return cluster
 
     async def delete_cluster(self, cluster_id: str) -> bool:
+        from app.models.reservation import Reservation, ReservationStatus
+        
         cluster = await self.get_cluster(cluster_id)
         if not cluster:
             return False
+        
+        # Update all reservations: preserve cluster name and cancel active/scheduled ones
+        result = await self.db.execute(
+            select(Reservation).where(Reservation.cluster_id == cluster_id)
+        )
+        reservations = result.scalars().all()
+        
+        for reservation in reservations:
+            # Preserve the cluster name for historical records
+            reservation.cluster_name = cluster.name
+            reservation.cluster_id = None
+            
+            # Cancel any scheduled or active reservations
+            if reservation.status in [ReservationStatus.SCHEDULED, ReservationStatus.ACTIVE]:
+                reservation.status = ReservationStatus.CANCELLED
+                reservation.notes = (reservation.notes or "") + f"\n[Auto-cancelled: Cluster '{cluster.name}' was removed from Control Center]"
         
         await self.db.delete(cluster)
         await self.db.commit()

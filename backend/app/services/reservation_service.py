@@ -42,6 +42,7 @@ class ReservationService:
         
         reservation = Reservation(
             cluster_id=reservation_data.cluster_id,
+            cluster_name=cluster.name,  # Store cluster name for historical records
             title=reservation_data.title,
             description=reservation_data.description,
             user_name=reservation_data.user_name,
@@ -229,13 +230,15 @@ class ReservationService:
         
         events = []
         for r in reservations:
+            # Use stored cluster_name, or get from relationship, or mark as removed
+            cluster_name = r.cluster_name or (r.cluster.name if r.cluster else "[Cluster Removed]")
             events.append(CalendarEvent(
                 id=r.id,
                 title=r.title,
                 start=r.start_time,
                 end=r.end_time,
                 cluster_id=r.cluster_id,
-                cluster_name=r.cluster.name if r.cluster else "Unknown",
+                cluster_name=cluster_name,
                 user_name=r.user_name,
                 team=r.team,
                 status=r.status,

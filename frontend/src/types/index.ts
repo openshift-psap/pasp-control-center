@@ -47,8 +47,8 @@ export interface ResourceUsage {
 
 export interface Reservation {
   id: string
-  cluster_id: string
-  cluster_name?: string
+  cluster_id?: string | null  // Can be null if cluster was removed
+  cluster_name?: string  // Preserved even after cluster removal
   title: string
   description?: string
   user_name: string
@@ -69,8 +69,8 @@ export interface CalendarEvent {
   title: string
   start: string
   end: string
-  cluster_id: string
-  cluster_name: string
+  cluster_id?: string | null  // Can be null if cluster was removed
+  cluster_name: string  // Always preserved
   user_name: string
   team?: string
   status: string

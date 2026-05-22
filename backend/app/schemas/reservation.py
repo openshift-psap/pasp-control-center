@@ -50,12 +50,23 @@ class ReservationUpdate(BaseModel):
     color: Optional[str] = Field(None, pattern="^#[0-9A-Fa-f]{6}$")
 
 
-class ReservationResponse(ReservationBase):
+class ReservationResponse(BaseModel):
     id: str
+    title: str
+    description: Optional[str] = None
+    cluster_id: Optional[str] = None  # Can be null if cluster was removed
+    cluster_name: Optional[str] = None  # Preserved even after cluster removal
+    user_name: str
+    user_email: Optional[str] = None
+    team: Optional[str] = None
+    start_time: datetime
+    end_time: datetime
+    purpose: Optional[str] = None
+    notes: Optional[str] = None
+    color: Optional[str] = None
     status: ReservationStatusEnum
     created_at: datetime
     updated_at: datetime
-    cluster_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -71,8 +82,8 @@ class CalendarEvent(BaseModel):
     title: str
     start: datetime
     end: datetime
-    cluster_id: str
-    cluster_name: str
+    cluster_id: Optional[str] = None  # Can be null if cluster was removed
+    cluster_name: str  # Always preserved
     user_name: str
     team: Optional[str] = None
     status: ReservationStatusEnum

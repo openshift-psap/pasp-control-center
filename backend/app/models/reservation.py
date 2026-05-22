@@ -18,7 +18,8 @@ class Reservation(Base):
     __tablename__ = "reservations"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    cluster_id = Column(String(36), ForeignKey("clusters.id"), nullable=False, index=True)
+    cluster_id = Column(String(36), ForeignKey("clusters.id", ondelete="SET NULL"), nullable=True, index=True)
+    cluster_name = Column(String(255), nullable=True)  # Preserved when cluster is removed
     
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
