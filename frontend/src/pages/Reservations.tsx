@@ -47,25 +47,47 @@ function WeekCalendar({ reservations }: { reservations: Array<{ start_time: stri
     days.push(addDays(currentWeekStart, i))
   }
   
-  // Get reservations for a specific day
-  const getReservationsForDay = (date: Date) => {
+  // Time slots from 6 AM to 10 PM (16 hours)
+  const timeSlots = Array.from({ length: 17 }, (_, i) => i + 6) // 6, 7, 8, ... 22
+  
+  // Get ALL reservations that cover a specific hour on a specific day (supports overlapping on different clusters)
+  const getReservationsForSlot = (date: Date, hour: number) => {
+    const slotStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, 0, 0)
+    const slotEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, 59, 59)
+    
     return reservations.filter((r) => {
       if (r.status === 'cancelled') return false
       const start = new Date(r.start_time)
       const end = new Date(r.end_time)
-      const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-      const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59)
-      return start <= dayEnd && end >= dayStart
+      return start <= slotEnd && end > slotStart
     })
+  }
+  
+  // Check if this is the first hour of a reservation on this day
+  const isReservationStart = (date: Date, hour: number, reservation: any) => {
+    const start = new Date(reservation.start_time)
+    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0)
+    
+    // If reservation started on a previous day, check if this is 6 AM (first visible slot)
+    if (start < dayStart) {
+      return hour === 6
+    }
+    return start.getHours() === hour && 
+           start.getDate() === date.getDate() &&
+           start.getMonth() === date.getMonth()
   }
   
   const prevWeek = () => setCurrentWeekStart(addDays(currentWeekStart, -7))
   const nextWeek = () => setCurrentWeekStart(addDays(currentWeekStart, 7))
   const goToToday = () => setCurrentWeekStart(startOfWeek(new Date()))
   
+  // Get current hour for highlighting
+  const now = new Date()
+  const currentHour = now.getHours()
+  
   return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between mb-4">
+    <div className="card overflow-hidden">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <button 
           onClick={prevWeek}
           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
@@ -91,59 +113,144 @@ function WeekCalendar({ reservations }: { reservations: Array<{ start_time: stri
         </button>
       </div>
       
-      <div className="grid grid-cols-7 gap-2">
-        {days.map((date, idx) => {
-          const dayReservations = getReservationsForDay(date)
-          const isCurrentDay = isToday(date)
-          
-          return (
-            <div
-              key={idx}
-              className={clsx(
-                'flex flex-col rounded-lg border p-2 min-h-[100px]',
-                isCurrentDay ? 'border-primary-300 bg-primary-50' : 'border-gray-200'
-              )}
-            >
-              <div className="text-center mb-2">
-                <div className="text-xs text-gray-500 uppercase">
-                  {format(date, 'EEE')}
-                </div>
-                <div className={clsx(
-                  'text-lg font-semibold',
-                  isCurrentDay ? 'text-primary-700' : 'text-gray-900'
-                )}>
-                  {format(date, 'd')}
-                </div>
-              </div>
-              <div className="flex-1 space-y-1 overflow-hidden">
-                {dayReservations.slice(0, 3).map((r, i) => (
-                  <div 
-                    key={i}
-                    className="text-xs p-1 rounded truncate"
-                    style={{ backgroundColor: `${r.color}20`, borderLeft: `2px solid ${r.color}` }}
-                    title={`${r.title} - ${r.user_name}`}
-                  >
-                    {r.title}
-                  </div>
-                ))}
-                {dayReservations.length > 3 && (
-                  <div className="text-xs text-gray-500 text-center">
-                    +{dayReservations.length - 3} more
-                  </div>
-                )}
-              </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[800px]">
+          {/* Header row with days */}
+          <div className="grid grid-cols-8 border-b border-gray-200">
+            <div className="p-2 text-xs font-medium text-gray-500 text-center border-r border-gray-100">
+              Time
             </div>
-          )
-        })}
+            {days.map((date, idx) => {
+              const isCurrentDay = isToday(date)
+              return (
+                <div 
+                  key={idx}
+                  className={clsx(
+                    'p-2 text-center border-r border-gray-100 last:border-r-0',
+                    isCurrentDay && 'bg-primary-50'
+                  )}
+                >
+                  <div className="text-xs text-gray-500 uppercase">{format(date, 'EEE')}</div>
+                  <div className={clsx(
+                    'text-lg font-semibold',
+                    isCurrentDay ? 'text-primary-700' : 'text-gray-900'
+                  )}>
+                    {format(date, 'd')}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          
+          {/* Time slots */}
+          <div className="max-h-[196px] overflow-y-auto">
+            {timeSlots.map((hour) => (
+              <div key={hour} className="grid grid-cols-8 border-b border-gray-100 last:border-b-0">
+                <div className="p-1 text-xs text-gray-500 text-center border-r border-gray-100 bg-gray-50">
+                  {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+                </div>
+                {days.map((date, dayIdx) => {
+                  const slotReservations = getReservationsForSlot(date, hour)
+                  const isCurrentDay = isToday(date)
+                  const isCurrentHour = isCurrentDay && hour === currentHour
+                  const hasReservations = slotReservations.length > 0
+                  const hasMultiple = slotReservations.length > 1
+                  
+                  // Build tooltip for all reservations in this slot
+                  const tooltipText = hasReservations 
+                    ? slotReservations.map(r => `${r.title} - ${r.user_name} (${r.cluster_name || 'Unknown'})`).join('\n')
+                    : 'Available'
+                  
+                  return (
+                    <div 
+                      key={dayIdx}
+                      className={clsx(
+                        'relative h-7 border-r border-gray-100 last:border-r-0',
+                        isCurrentHour && 'bg-primary-100',
+                        !hasReservations && isCurrentDay && 'bg-primary-50/30',
+                      )}
+                      title={tooltipText}
+                    >
+                      {hasReservations ? (
+                        hasMultiple ? (
+                          // Multiple overlapping reservations - show split view with color stripes
+                          <div className="absolute inset-0 flex">
+                            {slotReservations.map((res, idx) => {
+                              const showLabel = isReservationStart(date, hour, res)
+                              return (
+                                <div
+                                  key={idx}
+                                  className="flex-1 flex items-center justify-center overflow-hidden border-r border-white/50 last:border-r-0"
+                                  style={{ backgroundColor: `${res.color}40` }}
+                                >
+                                  {showLabel && slotReservations.length <= 2 && (
+                                    <span 
+                                      className="text-[8px] font-bold truncate px-0.5"
+                                      style={{ color: res.color }}
+                                    >
+                                      {res.cluster_name?.substring(0, 8) || res.title.substring(0, 6)}
+                                    </span>
+                                  )}
+                                </div>
+                              )
+                            })}
+                            {/* Overlap indicator badge */}
+                            <div className="absolute top-0 right-0 bg-gray-800 text-white text-[8px] font-bold px-1 rounded-bl">
+                              {slotReservations.length}
+                            </div>
+                          </div>
+                        ) : (
+                          // Single reservation
+                          <div 
+                            className="absolute inset-0 flex items-center px-1"
+                            style={{ backgroundColor: `${slotReservations[0].color}30` }}
+                          >
+                            {isReservationStart(date, hour, slotReservations[0]) && (
+                              <span 
+                                className="text-[10px] font-medium truncate"
+                                style={{ color: slotReservations[0].color }}
+                              >
+                                {slotReservations[0].title}
+                              </span>
+                            )}
+                          </div>
+                        )
+                      ) : (
+                        <div className="absolute inset-0 hover:bg-green-50 transition-colors" />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
       
-      <div className="mt-4 pt-4 border-t border-gray-100">
+      {/* Legend */}
+      <div className="p-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+        <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-100 border border-green-300 rounded" />
+            <span>Available</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-blue-200 rounded" />
+            <span>Reserved</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-gradient-to-r from-blue-200 to-purple-200 rounded relative">
+              <span className="absolute -top-0.5 -right-0.5 bg-gray-800 text-white text-[6px] w-2 h-2 flex items-center justify-center rounded-sm">2</span>
+            </div>
+            <span>Multiple clusters</span>
+          </div>
+        </div>
         <Link 
           to="/calendar" 
-          className="text-sm text-primary-600 hover:text-primary-700 flex items-center justify-center gap-1"
+          className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
         >
           <CalendarDaysIcon className="h-4 w-4" />
-          Open Full Calendar
+          Full Calendar
         </Link>
       </div>
     </div>
@@ -251,17 +358,21 @@ export default function Reservations() {
       ) : (
         <div className="space-y-6">
           {/* Active Reservations */}
-          {activeReservations.length > 0 && (
-            <div className="card border-l-4 border-l-green-500 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 bg-green-50">
-                <div className="flex items-center gap-2">
+          <div className="card border-l-4 border-l-green-500 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 bg-green-50">
+              <div className="flex items-center gap-2">
+                {activeReservations.length > 0 && (
                   <span className="relative flex h-3 w-3">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                   </span>
-                  <h2 className="text-lg font-semibold text-gray-900">Active Now ({activeReservations.length})</h2>
-                </div>
+                )}
+                <h2 className="text-lg font-semibold text-gray-900">Active Now ({activeReservations.length})</h2>
               </div>
+            </div>
+            {activeReservations.length === 0 ? (
+              <div className="px-6 py-8 text-center text-gray-500">No active reservations right now</div>
+            ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -308,8 +419,8 @@ export default function Reservations() {
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Upcoming Reservations */}
           <div className="card overflow-hidden">

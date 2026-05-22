@@ -4,13 +4,32 @@ A comprehensive cluster management and reservation system for the Performance an
 
 ## Features
 
-### Current Features (Phase 1)
-- **Cluster Management**: Add, monitor, and manage OCP clusters
-- **Kubeconfig Upload**: Load kubeconfigs from the UI to connect new clusters
-- **Cluster Health Monitoring**: Real-time status, node information, and resource usage
-- **Reservation System**: Schedule cluster usage with conflict detection
-- **Calendar Views**: Daily, weekly, and monthly views of cluster reservations
-- **Current User Display**: See who is currently using each cluster
+### Cluster Management
+- **Multiple Authentication Methods**: Connect via kubeconfig file upload or kubeadmin username/password
+- **Persistent Access**: Automatic service account creation with long-lived tokens (no more token expiration issues)
+- **Real-time Health Monitoring**: Cluster status, version, node count, and connectivity checks
+- **Visual Cluster Topology**: Modern, futuristic visualization of cluster architecture with API server hub and worker nodes
+- **Detailed Node Information**: CPU, memory, pods, GPU type (e.g., NVIDIA A100), OS, and kubelet version in an overlay popup
+- **Automatic Color Assignment**: Each cluster gets a unique color from a predefined palette
+
+### Reservation System
+- **Conflict Detection**: Detailed error messages showing conflicting reservation's title, user, and exact time range
+- **Color-Coded Reservations**: Reservations inherit their cluster's color for easy visual identification
+- **Three-Section Layout**: Active Now, Upcoming, and Past reservations with full date/time details
+- **Cancellation Tracking**: Distinguishes between manual and auto-cancellations (e.g., when cluster is removed)
+- **Historical Preservation**: Reservations are retained when clusters are removed, maintaining audit history
+
+### Calendar Views
+- **Weekly Calendar Preview**: Hourly slots (6 AM - 10 PM) with glanceable availability
+- **Concurrent Reservation Display**: Shows multiple overlapping reservations on different clusters with split-view and count badges
+- **Full Calendar**: Daily, weekly, and monthly views with drag-and-drop support
+- **Current Time Highlighting**: Visual indicator for current day and hour
+
+### Dashboard
+- **Active Reservations**: Live view with pulsing indicator, user details, and countdown
+- **Upcoming Reservations**: Scheduled reservations for the next 7 days
+- **Past Reservations**: Completed and cancelled reservations from the last 30 days
+- **Cluster Overview**: Quick-glance cards showing all registered clusters and their status
 
 ### Planned Features (Phase 2)
 - **Automated Testing**: Configure and run performance benchmarks
@@ -78,11 +97,23 @@ npm run dev
 
 ### Adding Clusters
 
+**Method 1: Kubeconfig Upload**
 1. Navigate to the Clusters page
 2. Click "Add Cluster"
 3. Enter a name and optional description
 4. Upload your kubeconfig file
 5. The system will automatically connect and retrieve cluster information
+
+**Method 2: Kubeadmin Credentials**
+1. Navigate to the Clusters page
+2. Click "Add Cluster"
+3. Enter a name and optional description
+4. Select "Use kubeadmin credentials" tab
+5. Enter the API server URL (e.g., `https://api.cluster.example.com:6443`)
+6. Enter kubeadmin username and password
+7. The system will authenticate via OAuth and create a service account for persistent access
+
+> **Note**: When using kubeadmin credentials, the system automatically creates a `pasp-control-center` service account with cluster-admin permissions to avoid token expiration issues.
 
 ## Architecture
 
@@ -121,10 +152,15 @@ Once the backend is running, access the interactive API documentation:
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/v1/clusters` | GET | List all clusters |
-| `/api/v1/clusters` | POST | Add a new cluster |
+| `/api/v1/clusters` | POST | Add a new cluster (kubeconfig or credentials) |
+| `/api/v1/clusters/{id}` | GET | Get cluster details |
+| `/api/v1/clusters/{id}` | DELETE | Remove cluster from tracking |
 | `/api/v1/clusters/{id}/refresh` | POST | Refresh cluster status |
-| `/api/v1/reservations` | GET | List reservations |
+| `/api/v1/clusters/{id}/topology` | GET | Get cluster topology (nodes, pods, operators) |
+| `/api/v1/reservations` | GET | List reservations (with status filter) |
 | `/api/v1/reservations` | POST | Create a reservation |
+| `/api/v1/reservations/{id}` | PUT | Update a reservation |
+| `/api/v1/reservations/{id}/cancel` | POST | Cancel a reservation |
 | `/api/v1/reservations/calendar` | GET | Get calendar events |
 
 ## GitHub Repository Setup
@@ -168,6 +204,8 @@ git push -u origin main
 - Never commit kubeconfig files to the repository
 - Use environment variables for sensitive configuration
 - The `.gitignore` excludes sensitive files by default
+- Service accounts created for OAuth authentication use `cluster-admin` role
+- Tokens are stored securely in the database (consider encryption for production)
 
 ## License
 
