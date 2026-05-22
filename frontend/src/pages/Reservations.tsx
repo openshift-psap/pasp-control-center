@@ -12,15 +12,8 @@ import {
 } from '@heroicons/react/24/outline'
 import { 
   format, 
-  startOfMonth, 
-  endOfMonth, 
   startOfWeek, 
-  endOfWeek, 
   addDays, 
-  addMonths, 
-  subMonths,
-  isSameMonth,
-  isSameDay,
   isToday,
 } from 'date-fns'
 import {
@@ -56,23 +49,16 @@ const initialFormState = {
   color: '#3B82F6',
 }
 
-function MiniCalendar({ reservations }: { reservations: Array<{ start_time: string; end_time: string; color: string; title: string; status: string }> }) {
-  const [currentMonth, setCurrentMonth] = useState(new Date())
+function WeekCalendar({ reservations }: { reservations: Array<{ start_time: string; end_time: string; color: string; title: string; status: string; user_name: string; cluster_name?: string }> }) {
+  const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date()))
   
-  const monthStart = startOfMonth(currentMonth)
-  const monthEnd = endOfMonth(currentMonth)
-  const calendarStart = startOfWeek(monthStart)
-  const calendarEnd = endOfWeek(monthEnd)
-  
-  // Get all days in the calendar view
+  // Get all days in the week
   const days: Date[] = []
-  let day = calendarStart
-  while (day <= calendarEnd) {
-    days.push(day)
-    day = addDays(day, 1)
+  for (let i = 0; i < 7; i++) {
+    days.push(addDays(currentWeekStart, i))
   }
   
-  // Check if a day has reservations
+  // Get reservations for a specific day
   const getReservationsForDay = (date: Date) => {
     return reservations.filter((r) => {
       if (r.status === 'cancelled') return false
@@ -84,67 +70,79 @@ function MiniCalendar({ reservations }: { reservations: Array<{ start_time: stri
     })
   }
   
+  const prevWeek = () => setCurrentWeekStart(addDays(currentWeekStart, -7))
+  const nextWeek = () => setCurrentWeekStart(addDays(currentWeekStart, 7))
+  const goToToday = () => setCurrentWeekStart(startOfWeek(new Date()))
+  
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between mb-4">
         <button 
-          onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-          className="p-1 hover:bg-gray-100 rounded"
+          onClick={prevWeek}
+          className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ChevronLeftIcon className="h-5 w-5 text-gray-600" />
         </button>
-        <h3 className="font-semibold text-gray-900">
-          {format(currentMonth, 'MMMM yyyy')}
-        </h3>
+        <div className="text-center">
+          <h3 className="font-semibold text-gray-900">
+            {format(currentWeekStart, 'MMM d')} - {format(addDays(currentWeekStart, 6), 'MMM d, yyyy')}
+          </h3>
+          <button 
+            onClick={goToToday}
+            className="text-xs text-primary-600 hover:text-primary-700"
+          >
+            Go to today
+          </button>
+        </div>
         <button 
-          onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-          className="p-1 hover:bg-gray-100 rounded"
+          onClick={nextWeek}
+          className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ChevronRightIcon className="h-5 w-5 text-gray-600" />
         </button>
       </div>
       
-      <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500 mb-2">
-        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-          <div key={d}>{d}</div>
-        ))}
-      </div>
-      
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-2">
         {days.map((date, idx) => {
           const dayReservations = getReservationsForDay(date)
-          const hasReservations = dayReservations.length > 0
-          const isCurrentMonth = isSameMonth(date, currentMonth)
+          const isCurrentDay = isToday(date)
           
           return (
             <div
               key={idx}
               className={clsx(
-                'relative h-8 flex items-center justify-center text-sm rounded',
-                !isCurrentMonth && 'text-gray-300',
-                isCurrentMonth && !hasReservations && 'text-gray-700',
-                isToday(date) && 'font-bold',
-                hasReservations && isCurrentMonth && 'font-medium'
+                'flex flex-col rounded-lg border p-2 min-h-[100px]',
+                isCurrentDay ? 'border-primary-300 bg-primary-50' : 'border-gray-200'
               )}
             >
-              <span className={clsx(
-                'w-7 h-7 flex items-center justify-center rounded-full',
-                isToday(date) && 'bg-primary-100 text-primary-700',
-              )}>
-                {format(date, 'd')}
-              </span>
-              {hasReservations && isCurrentMonth && (
-                <div className="absolute bottom-0.5 left-1/2 transform -translate-x-1/2 flex gap-0.5">
-                  {dayReservations.slice(0, 3).map((r, i) => (
-                    <div 
-                      key={i}
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ backgroundColor: r.color }}
-                      title={r.title}
-                    />
-                  ))}
+              <div className="text-center mb-2">
+                <div className="text-xs text-gray-500 uppercase">
+                  {format(date, 'EEE')}
                 </div>
-              )}
+                <div className={clsx(
+                  'text-lg font-semibold',
+                  isCurrentDay ? 'text-primary-700' : 'text-gray-900'
+                )}>
+                  {format(date, 'd')}
+                </div>
+              </div>
+              <div className="flex-1 space-y-1 overflow-hidden">
+                {dayReservations.slice(0, 3).map((r, i) => (
+                  <div 
+                    key={i}
+                    className="text-xs p-1 rounded truncate"
+                    style={{ backgroundColor: `${r.color}20`, borderLeft: `2px solid ${r.color}` }}
+                    title={`${r.title} - ${r.user_name}`}
+                  >
+                    {r.title}
+                  </div>
+                ))}
+                {dayReservations.length > 3 && (
+                  <div className="text-xs text-gray-500 text-center">
+                    +{dayReservations.length - 3} more
+                  </div>
+                )}
+              </div>
             </div>
           )
         })}
@@ -228,10 +226,10 @@ export default function Reservations() {
 
   return (
     <div className="space-y-6">
-      {/* Mini Calendar - Centered */}
+      {/* Week Calendar - Centered */}
       <div className="flex justify-center">
-        <div className="w-full max-w-sm">
-          <MiniCalendar reservations={reservations} />
+        <div className="w-full max-w-4xl">
+          <WeekCalendar reservations={reservations} />
         </div>
       </div>
 
