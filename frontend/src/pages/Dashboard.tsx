@@ -68,6 +68,12 @@ export default function Dashboard() {
     )
   })
 
+  // Separate active and upcoming (scheduled) reservations
+  const activeReservationsList = reservations.filter((r) => r.status === 'active')
+  const upcomingReservations = reservations
+    .filter((r) => r.status === 'scheduled')
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -229,9 +235,53 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Active Reservations */}
+      {activeReservationsList.length > 0 && (
+        <div className="card border-l-4 border-l-green-500">
+          <div className="px-6 py-4 border-b border-gray-200 bg-green-50">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+              </span>
+              <h2 className="text-lg font-semibold text-gray-900">Active Reservations ({activeReservationsList.length})</h2>
+            </div>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {activeReservationsList.map((reservation) => (
+              <div key={reservation.id} className="px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div
+                    className="h-10 w-1 rounded-full"
+                    style={{ backgroundColor: reservation.color }}
+                  />
+                  <div>
+                    <p className="font-medium text-gray-900">{reservation.title}</p>
+                    <p className="text-sm text-gray-500">
+                      {reservation.cluster_name || 'Unknown Cluster'} • {reservation.user_name}
+                      {reservation.team && ` (${reservation.team})`}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-900">
+                    Ends {format(new Date(reservation.end_time), 'h:mm a')}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {format(new Date(reservation.end_time), 'MMM d, yyyy')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Upcoming Reservations */}
       <div className="card">
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Upcoming Reservations</h2>
+          <p className="text-sm text-gray-500 mt-1">Scheduled reservations for the next 7 days</p>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -261,14 +311,14 @@ export default function Dashboard() {
                     Loading...
                   </td>
                 </tr>
-              ) : reservations.length === 0 ? (
+              ) : upcomingReservations.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                    No upcoming reservations
+                    No upcoming reservations scheduled
                   </td>
                 </tr>
               ) : (
-                reservations.slice(0, 10).map((reservation) => (
+                upcomingReservations.slice(0, 10).map((reservation) => (
                   <tr key={reservation.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
@@ -300,18 +350,8 @@ export default function Dashboard() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`badge ${
-                          reservation.status === 'active'
-                            ? 'badge-success'
-                            : reservation.status === 'scheduled'
-                            ? 'badge-info'
-                            : reservation.status === 'cancelled'
-                            ? 'badge-error'
-                            : 'badge-warning'
-                        }`}
-                      >
-                        {reservation.status}
+                      <span className="badge badge-info">
+                        scheduled
                       </span>
                     </td>
                   </tr>
