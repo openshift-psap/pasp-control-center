@@ -18,6 +18,12 @@ export default function Dashboard() {
     start_date: startOfDay(new Date()).toISOString(),
     end_date: endOfDay(addDays(new Date(), 7)).toISOString(),
   })
+  
+  // Fetch past reservations (last 30 days)
+  const { data: pastReservationsData, isLoading: pastReservationsLoading } = useReservations({
+    start_date: startOfDay(addDays(new Date(), -30)).toISOString(),
+    end_date: startOfDay(new Date()).toISOString(),
+  })
 
   const clusters = clustersData?.clusters || []
   const reservations = reservationsData?.reservations || []
@@ -73,6 +79,11 @@ export default function Dashboard() {
   const upcomingReservations = reservations
     .filter((r) => r.status === 'scheduled')
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+  
+  // Past reservations (completed or cancelled)
+  const pastReservations = (pastReservationsData?.reservations || [])
+    .filter((r) => r.status === 'completed' || r.status === 'cancelled')
+    .sort((a, b) => new Date(b.end_time).getTime() - new Date(a.end_time).getTime())
 
   return (
     <div className="space-y-6">
@@ -360,6 +371,104 @@ export default function Dashboard() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Past Reservations */}
+      <div className="card">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Past Reservations</h2>
+          <p className="text-sm text-gray-500 mt-1">Completed reservations from the last 30 days</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Reservation
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Cluster
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  User
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {pastReservationsLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    Loading...
+                  </td>
+                </tr>
+              ) : pastReservations.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    No past reservations
+                  </td>
+                </tr>
+              ) : (
+                pastReservations.slice(0, 10).map((reservation) => (
+                  <tr key={reservation.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="h-8 w-1 rounded-full opacity-50"
+                          style={{ backgroundColor: reservation.color }}
+                        />
+                        <span className="font-medium text-gray-600">{reservation.title}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {reservation.cluster_name || 'Unknown'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <p className="text-sm text-gray-600">{reservation.user_name}</p>
+                        {reservation.team && (
+                          <p className="text-xs text-gray-400">{reservation.team}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div>
+                        <p>{format(new Date(reservation.start_time), 'MMM d, yyyy')}</p>
+                        <p className="text-xs">
+                          {format(new Date(reservation.start_time), 'h:mm a')} -{' '}
+                          {format(new Date(reservation.end_time), 'h:mm a')}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`badge ${
+                          reservation.status === 'completed'
+                            ? 'badge-success'
+                            : 'badge-error'
+                        }`}
+                      >
+                        {reservation.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {pastReservations.length > 10 && (
+          <div className="px-6 py-3 border-t border-gray-200 bg-gray-50">
+            <Link to="/reservations" className="text-sm text-primary-600 hover:text-primary-700">
+              View all past reservations →
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   )
