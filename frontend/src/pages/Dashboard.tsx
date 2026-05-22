@@ -192,101 +192,68 @@ export default function Dashboard() {
         </div>
 
         <div className="card">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Today's Reservations</h2>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {reservationsLoading ? (
-              <div className="px-6 py-8 text-center text-gray-500">Loading reservations...</div>
-            ) : todayReservations.length === 0 ? (
-              <div className="px-6 py-8 text-center">
-                <CalendarDaysIcon className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-500">No reservations today</p>
-                <Link to="/reservations" className="mt-3 inline-block text-sm text-primary-600 hover:text-primary-700">
-                  Create a reservation
-                </Link>
-              </div>
-            ) : (
-              todayReservations.slice(0, 5).map((reservation) => (
-                <div
-                  key={reservation.id}
-                  className="flex items-center justify-between px-6 py-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="h-10 w-1 rounded-full"
-                      style={{ backgroundColor: reservation.color }}
-                    />
-                    <div>
-                      <p className="font-medium text-gray-900">{reservation.title}</p>
-                      <p className="text-sm text-gray-500">
-                        {reservation.cluster_name} · {reservation.user_name}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">
-                      {format(new Date(reservation.start_time), 'h:mm a')}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {format(new Date(reservation.end_time), 'h:mm a')}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          {todayReservations.length > 5 && (
-            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
-              <Link to="/calendar" className="text-sm text-primary-600 hover:text-primary-700">
-                View all reservations →
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Active Reservations */}
-      {activeReservationsList.length > 0 && (
-        <div className="card border-l-4 border-l-green-500">
           <div className="px-6 py-4 border-b border-gray-200 bg-green-50">
             <div className="flex items-center gap-2">
               <span className="relative flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
               </span>
-              <h2 className="text-lg font-semibold text-gray-900">Active Reservations ({activeReservationsList.length})</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Active Reservations</h2>
             </div>
           </div>
-          <div className="divide-y divide-gray-100">
-            {activeReservationsList.map((reservation) => (
-              <div key={reservation.id} className="px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div
-                    className="h-10 w-1 rounded-full"
-                    style={{ backgroundColor: reservation.color }}
-                  />
-                  <div>
-                    <p className="font-medium text-gray-900">{reservation.title}</p>
-                    <p className="text-sm text-gray-500">
-                      {reservation.cluster_name || 'Unknown Cluster'} • {reservation.user_name}
-                      {reservation.team && ` (${reservation.team})`}
+          <div className="divide-y divide-gray-200">
+            {reservationsLoading ? (
+              <div className="px-6 py-8 text-center text-gray-500">Loading reservations...</div>
+            ) : activeReservationsList.length === 0 ? (
+              <div className="px-6 py-8 text-center">
+                <CalendarDaysIcon className="mx-auto h-12 w-12 text-gray-400" />
+                <p className="mt-2 text-sm text-gray-500">No active reservations</p>
+                <Link to="/reservations" className="mt-3 inline-block text-sm text-primary-600 hover:text-primary-700">
+                  Create a reservation
+                </Link>
+              </div>
+            ) : (
+              activeReservationsList.slice(0, 5).map((reservation) => (
+                <div
+                  key={reservation.id}
+                  className="flex items-center justify-between px-6 py-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="h-12 w-1 rounded-full"
+                      style={{ backgroundColor: reservation.color }}
+                    />
+                    <div>
+                      <p className="font-medium text-gray-900">{reservation.title}</p>
+                      <p className="text-sm text-gray-500">
+                        {reservation.cluster_name}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {reservation.user_name}{reservation.team && ` · ${reservation.team}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right text-sm">
+                    <p className="text-gray-600">
+                      {format(new Date(reservation.start_time), 'MMM d, h:mm a')}
+                    </p>
+                    <p className="text-gray-500">
+                      to {format(new Date(reservation.end_time), 'MMM d, h:mm a')}
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-900">
-                    Ends {format(new Date(reservation.end_time), 'h:mm a')}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {format(new Date(reservation.end_time), 'MMM d, yyyy')}
-                  </p>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
+          {activeReservationsList.length > 5 && (
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
+              <Link to="/reservations" className="text-sm text-primary-600 hover:text-primary-700">
+                View all active reservations →
+              </Link>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Upcoming Reservations */}
       <div className="card">
