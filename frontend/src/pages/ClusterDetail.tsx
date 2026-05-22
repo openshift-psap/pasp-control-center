@@ -300,15 +300,15 @@ function TopologyVisualization({
       {/* Selected Node Details Overlay */}
       {selectedNode && (
         <div 
-          className="absolute inset-0 z-20 flex items-center justify-center p-4 rounded-xl overflow-hidden"
+          className="absolute inset-0 z-20 flex items-center justify-center p-6 rounded-xl"
           onClick={() => setSelectedNode(null)}
         >
           {/* Backdrop */}
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm rounded-xl" />
           
           {/* Modal */}
           <div 
-            className="relative w-full max-w-2xl animate-in fade-in zoom-in-95 duration-200"
+            className="relative w-full max-w-2xl max-h-full overflow-auto animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-violet-500/20 to-cyan-500/20 rounded-2xl blur-xl" />
@@ -316,53 +316,62 @@ function TopologyVisualization({
               {/* Close button */}
               <button
                 onClick={() => setSelectedNode(null)}
-                className="absolute top-4 right-4 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 transition-colors text-slate-400 hover:text-white"
+                className="absolute top-4 right-4 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 transition-colors text-slate-400 hover:text-white z-10"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
               
-              <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/30">
+              <div className="flex items-start gap-4 mb-6 pr-10">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/30 flex-shrink-0">
                   <ServerStackIcon className="h-6 w-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-lg text-white truncate">{selectedNode.name}</h4>
-                  <p className="text-sm text-slate-400">{selectedNode.roles.join(' • ')}</p>
+                  <h4 className="font-bold text-lg text-white break-all">{selectedNode.name}</h4>
+                  <p className="text-sm text-slate-400 mt-1">{selectedNode.roles.join(' • ')}</p>
+                  <span className={clsx(
+                    'inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider',
+                    selectedNode.status === 'Ready' 
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                      : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                  )}>
+                    {selectedNode.status}
+                  </span>
                 </div>
-                <span className={clsx(
-                  'px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider',
-                  selectedNode.status === 'Ready' 
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                    : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                )}>
-                  {selectedNode.status}
-                </span>
               </div>
               
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
-                  { label: 'Instance Type', value: selectedNode.instance_type },
-                  { label: 'Zone', value: selectedNode.zone },
-                  { label: 'Resources', value: `${selectedNode.cpu} CPU • ${selectedNode.memory_gb}GB • ${selectedNode.gpu} GPU` },
+                  { label: 'Instance Type', value: selectedNode.instance_type || 'N/A' },
+                  { label: 'Zone', value: selectedNode.zone || 'N/A' },
+                  { label: 'CPU', value: selectedNode.cpu || 'N/A' },
+                  { label: 'Memory', value: `${selectedNode.memory_gb || 0} GB` },
+                  { label: 'GPU', value: selectedNode.gpu || '0' },
+                  { label: 'Pods', value: String(selectedNode.pod_count || 0) },
                   { label: 'Internal IP', value: selectedNode.internal_ip || 'N/A', mono: true },
-                  { label: 'OS Image', value: selectedNode.os_image },
-                  { label: 'Runtime', value: selectedNode.container_runtime },
-                  { label: 'Kubelet', value: selectedNode.kubelet_version },
-                  { label: 'Architecture', value: selectedNode.architecture },
+                  { label: 'Architecture', value: selectedNode.architecture || 'N/A' },
+                  { label: 'OS Image', value: selectedNode.os_image || 'N/A', full: true },
+                  { label: 'Container Runtime', value: selectedNode.container_runtime || 'N/A', full: true },
+                  { label: 'Kubelet Version', value: selectedNode.kubelet_version || 'N/A', full: true },
                 ].map((item) => (
-                  <div key={item.label} className="p-3 bg-slate-800/50 rounded-xl border border-slate-700/30">
+                  <div 
+                    key={item.label} 
+                    className={clsx(
+                      'p-3 bg-slate-800/50 rounded-xl border border-slate-700/30',
+                      item.full && 'sm:col-span-2'
+                    )}
+                  >
                     <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{item.label}</p>
                     <p className={clsx(
-                      'text-sm text-white truncate',
+                      'text-sm text-white break-all',
                       item.mono && 'font-mono text-xs'
-                    )} title={item.value}>{item.value}</p>
+                    )}>{item.value}</p>
                   </div>
                 ))}
               </div>
               
-              <p className="mt-4 text-center text-xs text-slate-600">Click anywhere outside to close</p>
+              <p className="mt-4 text-center text-xs text-slate-600">Click anywhere outside or press X to close</p>
             </div>
           </div>
         </div>
