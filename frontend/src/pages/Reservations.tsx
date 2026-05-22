@@ -228,6 +228,13 @@ export default function Reservations() {
 
   return (
     <div className="space-y-6">
+      {/* Mini Calendar - Centered */}
+      <div className="flex justify-center">
+        <div className="w-full max-w-sm">
+          <MiniCalendar reservations={reservations} />
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reservations</h1>
@@ -241,13 +248,7 @@ export default function Reservations() {
         </button>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Main Content */}
-        <div className="flex-1 space-y-6">
-          {/* Mini Calendar - Mobile */}
-          <div className="lg:hidden">
-            <MiniCalendar reservations={reservations} />
-          </div>
+      <div className="space-y-6">
 
           {reservationsLoading ? (
         <div className="card p-12 text-center text-gray-500">Loading reservations...</div>
@@ -455,14 +456,6 @@ export default function Reservations() {
           </div>
         </div>
       )}
-        </div>
-
-        {/* Sidebar - Desktop */}
-        <div className="hidden lg:block w-72 flex-shrink-0">
-          <div className="sticky top-6">
-            <MiniCalendar reservations={reservations} />
-          </div>
-        </div>
       </div>
 
       <Transition appear show={isOpen} as={Fragment}>
