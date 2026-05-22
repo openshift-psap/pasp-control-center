@@ -15,6 +15,19 @@ const api = axios.create({
   },
 })
 
+// Interceptor to extract error messages from API responses
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Extract the detail message from FastAPI error responses
+    const detail = error.response?.data?.detail
+    if (detail) {
+      error.message = detail
+    }
+    return Promise.reject(error)
+  }
+)
+
 export const clusterApi = {
   list: async (activeOnly = false): Promise<ClusterListResponse> => {
     const { data } = await api.get('/clusters', { params: { active_only: activeOnly } })

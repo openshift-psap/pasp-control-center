@@ -38,7 +38,13 @@ class ReservationService:
             reservation_data.end_time
         )
         if conflicts:
-            raise ValueError(f"Time slot conflicts with existing reservation: {conflicts[0].title}")
+            c = conflicts[0]
+            conflict_start = c.start_time.strftime("%b %d, %I:%M %p")
+            conflict_end = c.end_time.strftime("%I:%M %p")
+            raise ValueError(
+                f"Time slot conflicts with '{c.title}' by {c.user_name} "
+                f"({conflict_start} - {conflict_end})"
+            )
         
         reservation = Reservation(
             cluster_id=reservation_data.cluster_id,
@@ -132,7 +138,13 @@ class ReservationService:
                 exclude_id=reservation_id
             )
             if conflicts:
-                raise ValueError(f"Time slot conflicts with existing reservation: {conflicts[0].title}")
+                c = conflicts[0]
+                conflict_start = c.start_time.strftime("%b %d, %I:%M %p")
+                conflict_end = c.end_time.strftime("%I:%M %p")
+                raise ValueError(
+                    f"Time slot conflicts with '{c.title}' by {c.user_name} "
+                    f"({conflict_start} - {conflict_end})"
+                )
         
         for key, value in update_data.items():
             setattr(reservation, key, value)
