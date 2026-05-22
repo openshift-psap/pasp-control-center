@@ -154,7 +154,7 @@ function TopologyVisualization({
   }
 
   return (
-    <div className="space-y-8 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 -m-6 p-8 rounded-xl">
+    <div className="relative space-y-8 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 -m-6 p-8 rounded-xl min-h-[500px]">
       {/* Legend */}
       <div className="flex items-center justify-center gap-6 text-sm">
         <div className="flex items-center gap-2">
@@ -300,11 +300,11 @@ function TopologyVisualization({
       {/* Selected Node Details Overlay */}
       {selectedNode && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="absolute inset-0 z-20 flex items-center justify-center p-4 rounded-xl overflow-hidden"
           onClick={() => setSelectedNode(null)}
         >
           {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" />
           
           {/* Modal */}
           <div 
