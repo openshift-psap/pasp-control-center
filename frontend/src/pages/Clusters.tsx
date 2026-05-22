@@ -107,9 +107,14 @@ export default function Clusters() {
     }
   }
 
-  const handleDelete = async (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete cluster "${name}"?`)) {
-      await deleteCluster.mutateAsync(id)
+  const handleRemove = async (id: string, name: string) => {
+    if (deleteCluster.isPending) return
+    if (window.confirm(`Remove cluster "${name}" from the Control Center?\n\nThis will only remove tracking - the actual cluster will not be affected.`)) {
+      try {
+        await deleteCluster.mutateAsync(id)
+      } catch (error) {
+        // Error is handled by the mutation
+      }
     }
   }
 
@@ -242,11 +247,12 @@ export default function Clusters() {
                   View Details
                 </Link>
                 <button
-                  onClick={() => handleDelete(cluster.id, cluster.name)}
-                  className="text-sm font-medium text-red-600 hover:text-red-700 flex items-center gap-1"
+                  onClick={() => handleRemove(cluster.id, cluster.name)}
+                  disabled={deleteCluster.isPending}
+                  className="text-sm font-medium text-red-600 hover:text-red-700 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <TrashIcon className="h-4 w-4" />
-                  Delete
+                  {deleteCluster.isPending ? 'Removing...' : 'Remove'}
                 </button>
               </div>
             </div>

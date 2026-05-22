@@ -66,10 +66,10 @@ export function useDeleteCluster() {
     mutationFn: clusterApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clusters'] })
-      toast.success('Cluster deleted successfully')
+      toast.success('Cluster removed from Control Center')
     },
     onError: (error: Error) => {
-      toast.error(`Failed to delete cluster: ${error.message}`)
+      toast.error(`Failed to remove cluster: ${error.message}`)
     },
   })
 }
