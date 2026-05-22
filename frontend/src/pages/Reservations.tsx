@@ -26,16 +26,6 @@ import { useClusters } from '../hooks/useClusters'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
 
-const COLORS = [
-  { name: 'Blue', value: '#3B82F6' },
-  { name: 'Green', value: '#10B981' },
-  { name: 'Purple', value: '#8B5CF6' },
-  { name: 'Red', value: '#EF4444' },
-  { name: 'Orange', value: '#F97316' },
-  { name: 'Teal', value: '#14B8A6' },
-  { name: 'Pink', value: '#EC4899' },
-]
-
 const initialFormState = {
   cluster_id: '',
   title: '',
@@ -46,7 +36,6 @@ const initialFormState = {
   start_time: '',
   end_time: '',
   purpose: '',
-  color: '#3B82F6',
 }
 
 function WeekCalendar({ reservations }: { reservations: Array<{ start_time: string; end_time: string; color: string; title: string; status: string; user_name: string; cluster_name?: string }> }) {
@@ -204,7 +193,6 @@ export default function Reservations() {
       start_time: new Date(form.start_time).toISOString(),
       end_time: new Date(form.end_time).toISOString(),
       purpose: form.purpose || undefined,
-      color: form.color,
     })
 
     setIsOpen(false)
@@ -532,13 +520,19 @@ export default function Reservations() {
                                 >
                                   {({ selected }) => (
                                     <>
-                                      <span
-                                        className={`block truncate ${
-                                          selected ? 'font-medium' : 'font-normal'
-                                        }`}
-                                      >
-                                        {cluster.name}
-                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <div 
+                                          className="w-3 h-3 rounded-full flex-shrink-0" 
+                                          style={{ backgroundColor: cluster.color || '#3B82F6' }}
+                                        />
+                                        <span
+                                          className={`block truncate ${
+                                            selected ? 'font-medium' : 'font-normal'
+                                          }`}
+                                        >
+                                          {cluster.name}
+                                        </span>
+                                      </div>
                                       {selected && (
                                         <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-primary-600">
                                           <CheckIcon className="h-5 w-5" />
@@ -629,24 +623,17 @@ export default function Reservations() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
-                      <div className="flex gap-2">
-                        {COLORS.map((color) => (
-                          <button
-                            key={color.value}
-                            onClick={() => setForm((prev) => ({ ...prev, color: color.value }))}
-                            className={`h-8 w-8 rounded-full transition-transform ${
-                              form.color === color.value
-                                ? 'ring-2 ring-offset-2 ring-gray-400 scale-110'
-                                : 'hover:scale-105'
-                            }`}
-                            style={{ backgroundColor: color.value }}
-                            title={color.name}
-                          />
-                        ))}
+                    {selectedCluster && (
+                      <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                        <div 
+                          className="w-4 h-4 rounded-full" 
+                          style={{ backgroundColor: clusters.find(c => c.id === selectedCluster.id)?.color || '#3B82F6' }}
+                        />
+                        <span className="text-sm text-gray-600">
+                          Reservation will use <strong>{selectedCluster.name}</strong>'s color
+                        </span>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   <div className="mt-6 flex justify-end gap-3">

@@ -40,6 +40,7 @@ class ClusterResponse(ClusterBase):
     id: str
     api_server_url: Optional[str] = None
     status: str
+    color: str = "#3B82F6"
     last_health_check: Optional[datetime] = None
     node_count: Optional[str] = None
     gpu_count: Optional[str] = None

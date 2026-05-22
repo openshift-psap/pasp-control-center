@@ -5,12 +5,17 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
 
-from app.models.cluster import Cluster
+from app.models.cluster import Cluster, CLUSTER_COLORS
 from app.schemas.cluster import ClusterCreate, ClusterUpdate, ClusterStatus
 from app.services.kubernetes_service import KubernetesService
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def get_next_color(existing_count: int) -> str:
+    """Get the next color from the palette based on existing cluster count."""
+    return CLUSTER_COLORS[existing_count % len(CLUSTER_COLORS)]
 
 
 class ClusterService:
@@ -50,12 +55,18 @@ class ClusterService:
             kubeconfig_path = login_result.get("kubeconfig_path")
             api_server_url = login_result.get("api_server")
         
+        # Auto-assign color based on existing cluster count
+        count_result = await self.db.execute(select(Cluster))
+        existing_count = len(count_result.scalars().all())
+        cluster_color = get_next_color(existing_count)
+        
         cluster = Cluster(
             name=cluster_data.name,
             description=cluster_data.description,
             kubeconfig_path=kubeconfig_path or "",
             api_server_url=api_server_url,
             tags=cluster_data.tags,
+            color=cluster_color,
             status="pending"
         )
         

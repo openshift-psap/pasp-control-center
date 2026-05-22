@@ -4,6 +4,7 @@ export interface Cluster {
   description?: string
   api_server_url?: string
   status: string
+  color: string
   last_health_check?: string
   node_count?: string
   gpu_count?: string

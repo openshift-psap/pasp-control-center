@@ -46,6 +46,9 @@ class ReservationService:
                 f"({conflict_start} to {conflict_end})"
             )
         
+        # Use the cluster's color for the reservation
+        cluster_color = getattr(cluster, 'color', '#3B82F6')
+        
         reservation = Reservation(
             cluster_id=reservation_data.cluster_id,
             cluster_name=cluster.name,  # Store cluster name for historical records
@@ -58,7 +61,7 @@ class ReservationService:
             end_time=reservation_data.end_time,
             purpose=reservation_data.purpose,
             notes=reservation_data.notes,
-            color=reservation_data.color,
+            color=cluster_color,  # Use cluster's color
             status=ReservationStatus.SCHEDULED
         )
         
