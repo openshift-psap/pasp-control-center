@@ -175,8 +175,12 @@ export default function Reservations() {
                           {reservation.team && <p className="text-xs text-gray-500">{reservation.team}</p>}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <p className="text-gray-900">{format(new Date(reservation.end_time), 'MMM d, yyyy')}</p>
-                          <p className="text-gray-500">{format(new Date(reservation.end_time), 'h:mm a')}</p>
+                          <p className="text-gray-900">
+                            Started: {format(new Date(reservation.start_time), 'MMM d, h:mm a')}
+                          </p>
+                          <p className="text-gray-500">
+                            Ends: {format(new Date(reservation.end_time), 'MMM d, yyyy h:mm a')}
+                          </p>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                           <button onClick={() => handleDelete(reservation.id)} className="text-red-600 hover:text-red-700">Delete</button>
@@ -229,9 +233,11 @@ export default function Reservations() {
                           {reservation.team && <p className="text-xs text-gray-500">{reservation.team}</p>}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <p className="text-gray-900">{format(new Date(reservation.start_time), 'MMM d, yyyy')}</p>
+                          <p className="text-gray-900">
+                            {format(new Date(reservation.start_time), 'MMM d, yyyy h:mm a')}
+                          </p>
                           <p className="text-gray-500">
-                            {format(new Date(reservation.start_time), 'h:mm a')} - {format(new Date(reservation.end_time), 'h:mm a')}
+                            to {format(new Date(reservation.end_time), 'MMM d, yyyy h:mm a')}
                           </p>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
@@ -287,9 +293,11 @@ export default function Reservations() {
                           {reservation.team && <p className="text-xs text-gray-400">{reservation.team}</p>}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <p className="text-gray-600">{format(new Date(reservation.start_time), 'MMM d, yyyy')}</p>
+                          <p className="text-gray-600">
+                            {format(new Date(reservation.start_time), 'MMM d, yyyy h:mm a')}
+                          </p>
                           <p className="text-gray-400">
-                            {format(new Date(reservation.start_time), 'h:mm a')} - {format(new Date(reservation.end_time), 'h:mm a')}
+                            to {format(new Date(reservation.end_time), 'MMM d, yyyy h:mm a')}
                           </p>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
