@@ -44,181 +44,303 @@ function TopologyVisualization({
 }) {
   const [selectedNode, setSelectedNode] = useState<TopologyNode | null>(null)
 
-  const NodeCard = ({ node, color }: { node: TopologyNode; color: string }) => (
-    <div
-      onClick={() => setSelectedNode(selectedNode?.name === node.name ? null : node)}
-      className={clsx(
-        'p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md',
-        selectedNode?.name === node.name ? 'ring-2 ring-primary-500' : '',
-        node.status === 'Ready' ? `border-${color}-300 bg-${color}-50` : 'border-red-300 bg-red-50'
-      )}
-      style={{
-        borderColor: node.status === 'Ready' ? undefined : '#fca5a5',
-        backgroundColor: node.status === 'Ready' ? undefined : '#fef2f2',
-      }}
-    >
-      <div className="flex items-center gap-2">
+  const NodeCard = ({ node, variant }: { node: TopologyNode; variant: 'control' | 'worker' | 'infra' }) => {
+    const gradients = {
+      control: 'from-violet-600 to-purple-700',
+      worker: 'from-cyan-500 to-blue-600',
+      infra: 'from-amber-500 to-orange-600',
+    }
+    const glows = {
+      control: 'shadow-violet-500/30',
+      worker: 'shadow-cyan-500/30',
+      infra: 'shadow-amber-500/30',
+    }
+    const borders = {
+      control: 'border-violet-500/30',
+      worker: 'border-cyan-500/30',
+      infra: 'border-amber-500/30',
+    }
+    
+    const isSelected = selectedNode?.name === node.name
+    const isReady = node.status === 'Ready'
+    
+    return (
+      <div
+        onClick={() => setSelectedNode(isSelected ? null : node)}
+        className={clsx(
+          'relative p-4 rounded-xl cursor-pointer transition-all duration-300',
+          'bg-slate-900/80 backdrop-blur-sm border',
+          isReady ? borders[variant] : 'border-red-500/50',
+          isSelected ? `ring-2 ring-offset-2 ring-offset-slate-950 ring-${variant === 'control' ? 'violet' : variant === 'worker' ? 'cyan' : 'amber'}-400` : '',
+          isReady ? `hover:shadow-lg hover:${glows[variant]}` : 'hover:shadow-lg hover:shadow-red-500/30',
+          'hover:scale-[1.02] hover:-translate-y-0.5'
+        )}
+      >
+        {/* Glow effect */}
         <div className={clsx(
-          'h-3 w-3 rounded-full',
-          node.status === 'Ready' ? 'bg-green-500' : 'bg-red-500'
+          'absolute inset-0 rounded-xl opacity-20 blur-xl transition-opacity',
+          isReady ? `bg-gradient-to-br ${gradients[variant]}` : 'bg-red-500',
+          isSelected ? 'opacity-40' : 'opacity-0 group-hover:opacity-20'
         )} />
-        <span className="font-medium text-sm truncate" title={node.name}>
-          {node.name.length > 20 ? `${node.name.slice(0, 20)}...` : node.name}
-        </span>
-      </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-600">
-        <div title="CPU">
-          <span className="font-semibold">{node.cpu}</span> CPU
+        
+        {/* Status indicator with pulse */}
+        <div className="absolute -top-1 -right-1">
+          <span className="relative flex h-3 w-3">
+            {isReady && (
+              <span className={clsx(
+                'animate-ping absolute inline-flex h-full w-full rounded-full opacity-75',
+                variant === 'control' ? 'bg-violet-400' : variant === 'worker' ? 'bg-cyan-400' : 'bg-amber-400'
+              )} />
+            )}
+            <span className={clsx(
+              'relative inline-flex rounded-full h-3 w-3',
+              isReady ? (variant === 'control' ? 'bg-violet-500' : variant === 'worker' ? 'bg-cyan-500' : 'bg-amber-500') : 'bg-red-500'
+            )} />
+          </span>
         </div>
-        <div title="Memory">
-          <span className="font-semibold">{node.memory_gb}</span> GB
-        </div>
-        <div title="GPU">
-          <span className="font-semibold">{node.gpu}</span> GPU
+        
+        {/* Content */}
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-3">
+            <div className={clsx(
+              'p-1.5 rounded-lg bg-gradient-to-br',
+              isReady ? gradients[variant] : 'from-red-500 to-red-700'
+            )}>
+              <ServerStackIcon className="h-4 w-4 text-white" />
+            </div>
+            <span className="font-mono text-xs text-slate-300 truncate" title={node.name}>
+              {node.name.length > 18 ? `${node.name.slice(0, 18)}...` : node.name}
+            </span>
+          </div>
+          
+          {/* Stats grid */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="text-center p-2 rounded-lg bg-slate-800/50">
+              <div className="text-lg font-bold text-white">{node.cpu}</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider">CPU</div>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-slate-800/50">
+              <div className="text-lg font-bold text-white">{node.memory_gb}</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider">GB</div>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-slate-800/50">
+              <div className={clsx(
+                'text-lg font-bold',
+                Number(node.gpu) > 0 ? 'text-emerald-400' : 'text-slate-600'
+              )}>{node.gpu}</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider">GPU</div>
+            </div>
+          </div>
+          
+          {/* Pod count bar */}
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
+              <span>PODS</span>
+              <span className="text-slate-400">{node.pod_count}</span>
+            </div>
+            <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+              <div 
+                className={clsx(
+                  'h-full rounded-full bg-gradient-to-r',
+                  isReady ? gradients[variant] : 'from-red-500 to-red-700'
+                )}
+                style={{ width: `${Math.min((node.pod_count / 100) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
         </div>
       </div>
-      <div className="mt-1 text-xs text-gray-500">
-        {node.pod_count} pods
-      </div>
-    </div>
-  )
+    )
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-center gap-4 text-sm">
+    <div className="space-y-8 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 -m-6 p-8 rounded-xl">
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-6 text-sm">
         <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-full bg-purple-500" />
-          <span>Control Plane ({controlPlane.length})</span>
+          <div className="h-3 w-3 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/30" />
+          <span className="text-slate-400">Control Plane ({controlPlane.length})</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-full bg-blue-500" />
-          <span>Workers ({workers.length})</span>
+          <div className="h-3 w-3 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/30" />
+          <span className="text-slate-400">Workers ({workers.length})</span>
         </div>
         {infra.length > 0 && (
           <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-orange-500" />
-            <span>Infra ({infra.length})</span>
+            <div className="h-3 w-3 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/30" />
+            <span className="text-slate-400">Infra ({infra.length})</span>
           </div>
         )}
       </div>
 
-      <div className="relative">
-        {/* API Server in center */}
-        <div className="flex justify-center mb-6">
-          <div className="bg-gray-900 text-white px-6 py-3 rounded-xl shadow-lg">
-            <div className="flex items-center gap-2">
-              <GlobeAltIcon className="h-5 w-5" />
-              <span className="font-semibold">API Server</span>
+      {/* API Server Hub */}
+      <div className="flex justify-center">
+        <div className="relative">
+          {/* Animated rings */}
+          <div className="absolute inset-0 -m-4">
+            <div className="absolute inset-0 rounded-full border border-cyan-500/20 animate-ping" style={{ animationDuration: '3s' }} />
+            <div className="absolute inset-2 rounded-full border border-cyan-500/30 animate-ping" style={{ animationDuration: '2.5s', animationDelay: '0.5s' }} />
+          </div>
+          
+          <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 px-8 py-4 rounded-2xl border border-cyan-500/30 shadow-2xl shadow-cyan-500/20">
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent rounded-2xl" />
+            <div className="relative flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/30">
+                <GlobeAltIcon className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <span className="font-bold text-white tracking-wide">API SERVER</span>
+                <div className="text-[10px] text-cyan-400 tracking-widest">KUBERNETES CONTROL</div>
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Control Plane Nodes */}
-        {controlPlane.length > 0 && (
-          <div className="mb-6">
-            <h4 className="text-sm font-medium text-gray-500 mb-3 text-center">Control Plane</h4>
-            <div className="flex flex-wrap justify-center gap-3">
-              {controlPlane.map((node) => (
-                <div key={node.name} className="w-48">
-                  <NodeCard node={node} color="purple" />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Connection line */}
-        <div className="flex justify-center my-4">
-          <div className="h-8 w-px bg-gray-300" />
+      {/* Connection lines */}
+      <div className="flex justify-center">
+        <div className="relative h-12 w-px">
+          <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/50 to-violet-500/50" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
         </div>
+      </div>
 
-        {/* Worker Nodes - grouped by zone if available */}
-        <div className="mb-6">
-          <h4 className="text-sm font-medium text-gray-500 mb-3 text-center">Worker Nodes</h4>
-          {zones.length > 1 ? (
-            <div className="space-y-4">
-              {zones.map((zone) => {
-                const zoneWorkers = workers.filter((w) => w.zone === zone)
-                if (zoneWorkers.length === 0) return null
-                return (
-                  <div key={zone} className="bg-gray-50 rounded-xl p-4">
-                    <h5 className="text-xs font-medium text-gray-400 mb-3">{zone}</h5>
-                    <div className="flex flex-wrap gap-3">
-                      {zoneWorkers.map((node) => (
-                        <div key={node.name} className="w-48">
-                          <NodeCard node={node} color="blue" />
-                        </div>
-                      ))}
-                    </div>
+      {/* Control Plane Nodes */}
+      {controlPlane.length > 0 && (
+        <div>
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <div className="h-px flex-1 bg-gradient-to-r from-transparent to-violet-500/30" />
+            <h4 className="text-xs font-bold text-violet-400 uppercase tracking-widest px-4">Control Plane</h4>
+            <div className="h-px flex-1 bg-gradient-to-l from-transparent to-violet-500/30" />
+          </div>
+          <div className="flex flex-wrap justify-center gap-4">
+            {controlPlane.map((node) => (
+              <div key={node.name} className="w-52">
+                <NodeCard node={node} variant="control" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Connection to workers */}
+      <div className="flex justify-center">
+        <div className="relative h-8 w-px">
+          <div className="absolute inset-0 bg-gradient-to-b from-violet-500/50 to-cyan-500/50" />
+        </div>
+      </div>
+
+      {/* Worker Nodes */}
+      <div>
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent to-cyan-500/30" />
+          <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-widest px-4">Worker Nodes</h4>
+          <div className="h-px flex-1 bg-gradient-to-l from-transparent to-cyan-500/30" />
+        </div>
+        
+        {zones.length > 1 ? (
+          <div className="space-y-6">
+            {zones.map((zone) => {
+              const zoneWorkers = workers.filter((w) => w.zone === zone)
+              if (zoneWorkers.length === 0) return null
+              return (
+                <div key={zone} className="bg-slate-800/30 rounded-2xl p-5 border border-slate-700/50">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-2 w-2 rounded-full bg-cyan-500 animate-pulse" />
+                    <span className="text-xs font-mono text-slate-500 uppercase tracking-wider">{zone}</span>
                   </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="flex flex-wrap justify-center gap-3">
-              {workers.map((node) => (
-                <div key={node.name} className="w-48">
-                  <NodeCard node={node} color="blue" />
+                  <div className="flex flex-wrap gap-4">
+                    {zoneWorkers.map((node) => (
+                      <div key={node.name} className="w-52">
+                        <NodeCard node={node} variant="worker" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Infra Nodes */}
-        {infra.length > 0 && (
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-3 text-center">Infrastructure</h4>
-            <div className="flex flex-wrap justify-center gap-3">
-              {infra.map((node) => (
-                <div key={node.name} className="w-48">
-                  <NodeCard node={node} color="orange" />
-                </div>
-              ))}
-            </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex flex-wrap justify-center gap-4">
+            {workers.map((node) => (
+              <div key={node.name} className="w-52">
+                <NodeCard node={node} variant="worker" />
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Selected Node Details */}
+      {/* Infra Nodes */}
+      {infra.length > 0 && (
+        <>
+          <div className="flex justify-center">
+            <div className="relative h-8 w-px">
+              <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/50 to-amber-500/50" />
+            </div>
+          </div>
+          
+          <div>
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent to-amber-500/30" />
+              <h4 className="text-xs font-bold text-amber-400 uppercase tracking-widest px-4">Infrastructure</h4>
+              <div className="h-px flex-1 bg-gradient-to-l from-transparent to-amber-500/30" />
+            </div>
+            <div className="flex flex-wrap justify-center gap-4">
+              {infra.map((node) => (
+                <div key={node.name} className="w-52">
+                  <NodeCard node={node} variant="infra" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Selected Node Details Panel */}
       {selectedNode && (
-        <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
-          <h4 className="font-semibold text-gray-900 mb-3">{selectedNode.name}</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-gray-500">Status</p>
-              <p className={clsx(
-                'font-medium',
-                selectedNode.status === 'Ready' ? 'text-green-600' : 'text-red-600'
-              )}>{selectedNode.status}</p>
+        <div className="mt-8 relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-violet-500/10 to-cyan-500/10 rounded-2xl blur-xl" />
+          <div className="relative p-6 bg-slate-900/90 backdrop-blur-sm rounded-2xl border border-slate-700/50">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600">
+                  <ServerStackIcon className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white">{selectedNode.name}</h4>
+                  <p className="text-xs text-slate-500">{selectedNode.roles.join(' • ')}</p>
+                </div>
+              </div>
+              <span className={clsx(
+                'px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider',
+                selectedNode.status === 'Ready' 
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                  : 'bg-red-500/20 text-red-400 border border-red-500/30'
+              )}>
+                {selectedNode.status}
+              </span>
             </div>
-            <div>
-              <p className="text-gray-500">Roles</p>
-              <p className="font-medium">{selectedNode.roles.join(', ')}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Instance Type</p>
-              <p className="font-medium">{selectedNode.instance_type}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Zone</p>
-              <p className="font-medium">{selectedNode.zone}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">CPU / Memory / GPU</p>
-              <p className="font-medium">{selectedNode.cpu} / {selectedNode.memory_gb}GB / {selectedNode.gpu}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Internal IP</p>
-              <p className="font-medium font-mono text-xs">{selectedNode.internal_ip || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">OS</p>
-              <p className="font-medium text-xs truncate" title={selectedNode.os_image}>{selectedNode.os_image}</p>
-            </div>
-            <div>
-              <p className="text-gray-500">Container Runtime</p>
-              <p className="font-medium text-xs">{selectedNode.container_runtime}</p>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Instance Type', value: selectedNode.instance_type },
+                { label: 'Zone', value: selectedNode.zone },
+                { label: 'Resources', value: `${selectedNode.cpu} CPU • ${selectedNode.memory_gb}GB • ${selectedNode.gpu} GPU` },
+                { label: 'Internal IP', value: selectedNode.internal_ip || 'N/A', mono: true },
+                { label: 'OS Image', value: selectedNode.os_image },
+                { label: 'Runtime', value: selectedNode.container_runtime },
+                { label: 'Kubelet', value: selectedNode.kubelet_version },
+                { label: 'Architecture', value: selectedNode.architecture },
+              ].map((item) => (
+                <div key={item.label} className="p-3 bg-slate-800/50 rounded-xl">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{item.label}</p>
+                  <p className={clsx(
+                    'text-sm text-white truncate',
+                    item.mono && 'font-mono text-xs'
+                  )} title={item.value}>{item.value}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
