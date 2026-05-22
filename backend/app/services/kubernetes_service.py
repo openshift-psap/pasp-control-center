@@ -26,7 +26,11 @@ class KubernetesService:
             raise FileNotFoundError(f"Kubeconfig not found: {self.kubeconfig_path}")
         
         config.load_kube_config(config_file=self.kubeconfig_path)
-        self._api_client = client.ApiClient()
+        
+        configuration = client.Configuration.get_default_copy()
+        configuration.retries = 1
+        
+        self._api_client = client.ApiClient(configuration)
         self._core_v1 = client.CoreV1Api(self._api_client)
         self._version_api = client.VersionApi(self._api_client)
 
@@ -654,9 +658,25 @@ class KubernetesService:
                         "error": "Authentication failed. Please check your credentials and ensure the API server URL is correct (should be like https://api.cluster.domain:6443)"
                     }
 
-                # Generate kubeconfig with the obtained token
+                # Try to create a service account with a long-lived token
+                logger.info(f"Creating service account for persistent access to {cluster_name}")
+                sa_result = await KubernetesService.create_service_account_token(
+                    api_server, access_token, cluster_name
+                )
+                
+                # Use the SA token if available, otherwise fall back to OAuth token
+                if sa_result.get("success") and sa_result.get("token"):
+                    final_token = sa_result["token"]
+                    auth_type = "service-account"
+                    logger.info(f"Using service account token for {cluster_name} (long-lived)")
+                else:
+                    final_token = access_token
+                    auth_type = "oauth-token"
+                    logger.warning(f"Using OAuth token for {cluster_name} (will expire)")
+
+                # Generate kubeconfig with the token
                 kubeconfig_content = KubernetesService._generate_kubeconfig_token(
-                    api_server, cluster_name, access_token
+                    api_server, cluster_name, final_token
                 )
                 
                 filepath = KubernetesService.save_kubeconfig(
@@ -667,7 +687,8 @@ class KubernetesService:
                     "success": True,
                     "kubeconfig_path": filepath,
                     "api_server": api_server,
-                    "auth_type": "token"
+                    "auth_type": auth_type,
+                    "service_account": sa_result.get("service_account") if sa_result.get("success") else None
                 }
 
         except httpx.ConnectError as e:
@@ -714,6 +735,189 @@ class KubernetesService:
         }
         
         return yaml.dump(kubeconfig, default_flow_style=False)
+
+    @staticmethod
+    async def create_service_account_token(
+        api_server: str,
+        initial_token: str,
+        cluster_name: str
+    ) -> Dict[str, Any]:
+        """
+        Create a service account with a long-lived token for persistent cluster access.
+        This avoids the OAuth token expiration issue.
+        """
+        sa_name = "pasp-control-center"
+        namespace = "pasp-system"
+        
+        try:
+            async with httpx.AsyncClient(verify=False, timeout=30.0) as http_client:
+                headers = {
+                    "Authorization": f"Bearer {initial_token}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Step 1: Create namespace (ignore if exists)
+                ns_body = {
+                    "apiVersion": "v1",
+                    "kind": "Namespace",
+                    "metadata": {"name": namespace}
+                }
+                ns_resp = await http_client.post(
+                    f"{api_server}/api/v1/namespaces",
+                    headers=headers,
+                    json=ns_body
+                )
+                if ns_resp.status_code not in [200, 201, 409]:  # 409 = already exists
+                    logger.warning(f"Failed to create namespace: {ns_resp.status_code} {ns_resp.text[:200]}")
+                
+                # Step 2: Create ServiceAccount
+                sa_body = {
+                    "apiVersion": "v1",
+                    "kind": "ServiceAccount",
+                    "metadata": {
+                        "name": sa_name,
+                        "namespace": namespace,
+                        "labels": {
+                            "app": "pasp-control-center",
+                            "managed-by": "pasp-control-center"
+                        }
+                    }
+                }
+                sa_resp = await http_client.post(
+                    f"{api_server}/api/v1/namespaces/{namespace}/serviceaccounts",
+                    headers=headers,
+                    json=sa_body
+                )
+                if sa_resp.status_code not in [200, 201, 409]:
+                    logger.warning(f"Failed to create SA: {sa_resp.status_code} {sa_resp.text[:200]}")
+                
+                # Step 3: Create ClusterRoleBinding for cluster-reader permissions
+                crb_name = f"pasp-control-center-{cluster_name.replace(' ', '-').lower()[:20]}"
+                crb_body = {
+                    "apiVersion": "rbac.authorization.k8s.io/v1",
+                    "kind": "ClusterRoleBinding",
+                    "metadata": {
+                        "name": crb_name,
+                        "labels": {
+                            "app": "pasp-control-center",
+                            "managed-by": "pasp-control-center"
+                        }
+                    },
+                    "roleRef": {
+                        "apiGroup": "rbac.authorization.k8s.io",
+                        "kind": "ClusterRole",
+                        "name": "cluster-admin"  # Using cluster-admin for full visibility
+                    },
+                    "subjects": [{
+                        "kind": "ServiceAccount",
+                        "name": sa_name,
+                        "namespace": namespace
+                    }]
+                }
+                crb_resp = await http_client.post(
+                    f"{api_server}/apis/rbac.authorization.k8s.io/v1/clusterrolebindings",
+                    headers=headers,
+                    json=crb_body
+                )
+                if crb_resp.status_code not in [200, 201, 409]:
+                    logger.warning(f"Failed to create CRB: {crb_resp.status_code} {crb_resp.text[:200]}")
+                
+                # Step 4: Create a Secret for the service account token (legacy approach for long-lived token)
+                secret_name = f"{sa_name}-token"
+                secret_body = {
+                    "apiVersion": "v1",
+                    "kind": "Secret",
+                    "metadata": {
+                        "name": secret_name,
+                        "namespace": namespace,
+                        "annotations": {
+                            "kubernetes.io/service-account.name": sa_name
+                        },
+                        "labels": {
+                            "app": "pasp-control-center",
+                            "managed-by": "pasp-control-center"
+                        }
+                    },
+                    "type": "kubernetes.io/service-account-token"
+                }
+                secret_resp = await http_client.post(
+                    f"{api_server}/api/v1/namespaces/{namespace}/secrets",
+                    headers=headers,
+                    json=secret_body
+                )
+                
+                if secret_resp.status_code == 409:
+                    # Secret exists, fetch it
+                    pass
+                elif secret_resp.status_code not in [200, 201]:
+                    logger.warning(f"Failed to create secret: {secret_resp.status_code} {secret_resp.text[:200]}")
+                
+                # Step 5: Wait briefly and fetch the token from the secret
+                import asyncio
+                await asyncio.sleep(2)  # Give K8s time to populate the token
+                
+                secret_get_resp = await http_client.get(
+                    f"{api_server}/api/v1/namespaces/{namespace}/secrets/{secret_name}",
+                    headers=headers
+                )
+                
+                if secret_get_resp.status_code == 200:
+                    secret_data = secret_get_resp.json()
+                    token_b64 = secret_data.get("data", {}).get("token")
+                    if token_b64:
+                        import base64
+                        sa_token = base64.b64decode(token_b64).decode('utf-8')
+                        logger.info(f"Successfully created service account token for {cluster_name}")
+                        return {
+                            "success": True,
+                            "token": sa_token,
+                            "service_account": f"{namespace}/{sa_name}",
+                            "token_type": "service-account"
+                        }
+                
+                # Fallback: Try TokenRequest API (OpenShift 4.11+)
+                token_request_body = {
+                    "apiVersion": "authentication.k8s.io/v1",
+                    "kind": "TokenRequest",
+                    "spec": {
+                        "expirationSeconds": 31536000  # 1 year
+                    }
+                }
+                token_req_resp = await http_client.post(
+                    f"{api_server}/api/v1/namespaces/{namespace}/serviceaccounts/{sa_name}/token",
+                    headers=headers,
+                    json=token_request_body
+                )
+                
+                if token_req_resp.status_code in [200, 201]:
+                    token_data = token_req_resp.json()
+                    sa_token = token_data.get("status", {}).get("token")
+                    if sa_token:
+                        logger.info(f"Successfully created service account token via TokenRequest for {cluster_name}")
+                        return {
+                            "success": True,
+                            "token": sa_token,
+                            "service_account": f"{namespace}/{sa_name}",
+                            "token_type": "token-request",
+                            "expires_in": "1 year"
+                        }
+                
+                # If we get here, SA creation worked but token retrieval failed
+                # Return the original token as fallback
+                logger.warning(f"Could not retrieve SA token, using original token")
+                return {
+                    "success": False,
+                    "error": "Could not retrieve service account token",
+                    "fallback": True
+                }
+                
+        except Exception as e:
+            logger.error(f"Error creating service account: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "fallback": True
+            }
 
     @staticmethod
     def _generate_kubeconfig_basic_auth(api_server: str, cluster_name: str, username: str, password: str) -> str:

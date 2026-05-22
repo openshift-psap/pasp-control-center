@@ -214,6 +214,51 @@ async def login_with_credentials(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/{cluster_id}/reauthenticate", response_model=ClusterResponse)
+async def reauthenticate_cluster(
+    cluster_id: str,
+    credentials: CredentialsLogin,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Re-authenticate to a cluster with fresh credentials.
+    Use when the OAuth token has expired.
+    """
+    from app.core.config import settings
+    
+    service = ClusterService(db)
+    cluster = await service.get_cluster(cluster_id)
+    
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    
+    try:
+        login_result = await KubernetesService.login_with_credentials(
+            api_server=credentials.api_server_url,
+            username=credentials.username,
+            password=credentials.password,
+            storage_path=settings.KUBECONFIG_STORAGE_PATH,
+            cluster_name=cluster.name
+        )
+        
+        if not login_result.get("success"):
+            raise HTTPException(status_code=400, detail=login_result.get("error"))
+        
+        cluster.kubeconfig_path = login_result.get("kubeconfig_path")
+        cluster.api_server_url = login_result.get("api_server")
+        cluster.status = "pending"
+        
+        await db.commit()
+        await db.refresh(cluster)
+        
+        await service.refresh_cluster_status(cluster_id)
+        await db.refresh(cluster)
+        
+        return ClusterResponse.model_validate(cluster)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/{cluster_id}/topology")
 async def get_cluster_topology(
     cluster_id: str,
