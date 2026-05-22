@@ -318,13 +318,10 @@ export default function Dashboard() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 text-sm text-gray-500">
                       <div>
-                        <p>{format(new Date(reservation.start_time), 'MMM d, yyyy')}</p>
-                        <p className="text-xs">
-                          {format(new Date(reservation.start_time), 'h:mm a')} -{' '}
-                          {format(new Date(reservation.end_time), 'h:mm a')}
-                        </p>
+                        <p className="text-gray-900">{format(new Date(reservation.start_time), 'MMM d, yyyy h:mm a')}</p>
+                        <p className="text-xs">to {format(new Date(reservation.end_time), 'MMM d, yyyy h:mm a')}</p>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -403,13 +400,10 @@ export default function Dashboard() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 text-sm text-gray-500">
                       <div>
-                        <p>{format(new Date(reservation.start_time), 'MMM d, yyyy')}</p>
-                        <p className="text-xs">
-                          {format(new Date(reservation.start_time), 'h:mm a')} -{' '}
-                          {format(new Date(reservation.end_time), 'h:mm a')}
-                        </p>
+                        <p className="text-gray-600">{format(new Date(reservation.start_time), 'MMM d, yyyy h:mm a')}</p>
+                        <p className="text-xs text-gray-400">to {format(new Date(reservation.end_time), 'MMM d, yyyy h:mm a')}</p>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
