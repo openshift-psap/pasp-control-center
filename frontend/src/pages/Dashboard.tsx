@@ -5,10 +5,15 @@ import {
   CpuChipIcon,
   UserGroupIcon,
   CheckCircleIcon,
+  FireIcon,
+  LockClosedIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline'
 import { useClusters } from '../hooks/useClusters'
 import { useReservations } from '../hooks/useReservations'
+import { useHearthClusters } from '../hooks/useHearth'
 import { format, startOfDay, endOfDay, addDays } from 'date-fns'
+import type { HearthCluster } from '../types'
 
 export default function Dashboard() {
   const { data: clustersData, isLoading: clustersLoading } = useClusters()
@@ -17,6 +22,10 @@ export default function Dashboard() {
     end_date: endOfDay(addDays(new Date(), 7)).toISOString(),
   })
   
+  const { data: hearthData } = useHearthClusters()
+  const hearthClusters = hearthData?.clusters || []
+  const hearthAvailable = hearthData?.available ?? false
+
   // Fetch past reservations (last 30 days)
   const { data: pastReservationsData, isLoading: pastReservationsLoading } = useReservations({
     start_date: startOfDay(addDays(new Date(), -30)).toISOString(),
@@ -249,6 +258,110 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Hearth GPU Cluster Status */}
+      {hearthAvailable && hearthClusters.length > 0 && (
+        <div className="card">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FireIcon className="h-5 w-5 text-orange-500" />
+                <h2 className="text-lg font-semibold text-gray-900">Hearth GPU Clusters</h2>
+              </div>
+              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                via FournosCluster CRDs
+              </span>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">
+              Auto-discovered clusters with GPU hardware and Kueue quota status
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Cluster
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    GPU Hardware
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Kubeconfig
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Lock Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Owner
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {hearthClusters.map((hc: HearthCluster) => (
+                  <tr key={hc.name} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <ServerStackIcon className="h-5 w-5 text-gray-400" />
+                        <span className="font-medium text-gray-900">{hc.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {hc.gpu_summary ? (
+                        <div className="flex items-center gap-2">
+                          <CpuChipIcon className="h-4 w-4 text-purple-500" />
+                          <span className="text-sm font-medium text-gray-900">{hc.gpu_summary}</span>
+                        </div>
+                      ) : hc.hardware?.last_error ? (
+                        <div className="flex items-center gap-1 text-sm text-red-600">
+                          <ExclamationTriangleIcon className="h-4 w-4" />
+                          Discovery error
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">Pending discovery</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`badge ${
+                        hc.kubeconfig_status === 'Valid' ? 'badge-success' :
+                        hc.kubeconfig_status === 'Unreachable' ? 'badge-error' :
+                        'badge-warning'
+                      }`}>
+                        {hc.kubeconfig_status || 'Unknown'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {hc.locked ? (
+                        <span className="flex items-center gap-1 text-sm font-medium text-orange-600">
+                          <LockClosedIcon className="h-4 w-4" />
+                          Locked
+                          {hc.lock_expires_at && (
+                            <span className="text-xs text-gray-400 ml-1">
+                              (expires {format(new Date(hc.lock_expires_at), 'MMM d, h:mm a')})
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-green-600">Available</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {hc.owner || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-sm text-gray-500">
+            {hearthClusters.length} cluster{hearthClusters.length !== 1 ? 's' : ''} discovered
+            {' · '}
+            {hearthClusters.reduce((sum, c) => sum + (c.hardware?.total_gpus || 0), 0)} total GPUs
+            {' · '}
+            {hearthClusters.filter(c => c.locked).length} locked
+          </div>
+        </div>
+      )}
 
       {/* Upcoming Reservations */}
       <div className="card">

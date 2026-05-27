@@ -11,10 +11,13 @@ import {
   ChartBarIcon,
   LockClosedIcon,
   LockOpenIcon,
+  FireIcon,
 } from '@heroicons/react/24/outline'
 import clsx from 'clsx'
 import LoginModal from './LoginModal'
+import HearthConnectModal from './HearthConnectModal'
 import { isAuthenticated, getCredentials, clearCredentials } from '../stores/authStore'
+import { useHearthStatus, useDisconnectHearth } from '../hooks/useHearth'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
@@ -25,11 +28,95 @@ const navigation = [
   { name: 'Results', href: '/results', icon: ChartBarIcon, comingSoon: true },
 ]
 
+function HearthIndicator({
+  onConnectClick,
+}: {
+  onConnectClick: () => void
+}) {
+  const { data: hearthStatus } = useHearthStatus()
+  const disconnectHearth = useDisconnectHearth()
+
+  const available = hearthStatus?.available ?? false
+  const configured = hearthStatus?.configured ?? false
+
+  if (!configured) {
+    return (
+      <button
+        onClick={onConnectClick}
+        className="w-full rounded-xl border border-dashed border-gray-300 p-3 hover:border-orange-400 hover:bg-orange-50 transition-colors group"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-gray-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
+            <FireIcon className="h-4 w-4 text-gray-400 group-hover:text-orange-500 transition-colors" />
+          </div>
+          <div className="text-left">
+            <p className="text-xs font-semibold text-gray-600 group-hover:text-orange-700">Connect Hearth</p>
+            <p className="text-[10px] text-gray-400">GPU cluster operator</p>
+          </div>
+        </div>
+      </button>
+    )
+  }
+
+  return (
+    <div className={clsx(
+      'rounded-xl p-3 border',
+      available
+        ? 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200'
+        : 'bg-gradient-to-br from-red-50 to-orange-50 border-red-200'
+    )}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className={clsx(
+            'h-8 w-8 rounded-lg flex items-center justify-center',
+            available ? 'bg-orange-100' : 'bg-red-100'
+          )}>
+            <FireIcon className={clsx(
+              'h-4 w-4',
+              available ? 'text-orange-600' : 'text-red-500'
+            )} />
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs font-semibold text-gray-700">Hearth</p>
+              <span className="relative flex h-2 w-2">
+                {available && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                )}
+                <span className={clsx(
+                  'relative inline-flex rounded-full h-2 w-2',
+                  available ? 'bg-green-500' : 'bg-red-400'
+                )} />
+              </span>
+            </div>
+            <p className="text-[10px] text-gray-500">
+              {available
+                ? `${hearthStatus?.cluster_count || 0} clusters · ${hearthStatus?.total_gpus || 0} GPUs`
+                : 'Connection error'}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => disconnectHearth.mutate()}
+          disabled={disconnectHearth.isPending}
+          className="text-[10px] text-gray-400 hover:text-red-600 transition-colors px-1.5 py-0.5 rounded hover:bg-white/60"
+          title="Disconnect Hearth"
+        >
+          {disconnectHearth.isPending ? '...' : 'Disconnect'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
+  const [hearthConnectOpen, setHearthConnectOpen] = useState(false)
   const [authed, setAuthed] = useState(isAuthenticated())
   const location = useLocation()
+
+  const { data: hearthStatus } = useHearthStatus()
 
   const syncAuth = useCallback(() => setAuthed(isAuthenticated()), [])
 
@@ -158,7 +245,8 @@ export default function Layout() {
               ))}
             </ul>
 
-            <div className="mt-auto pt-4 border-t border-gray-200">
+            <div className="mt-auto pt-4 border-t border-gray-200 space-y-3">
+              <HearthIndicator onConnectClick={() => setHearthConnectOpen(true)} />
               <div className="rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 p-4">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Organization</p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">OpenShift PSAP</p>
@@ -183,6 +271,33 @@ export default function Layout() {
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1" />
             <div className="flex items-center gap-x-4 lg:gap-x-6">
+              {/* Hearth connection badge in header */}
+              <button
+                onClick={() => !hearthStatus?.configured && setHearthConnectOpen(true)}
+                className={clsx(
+                  'hidden sm:flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
+                  hearthStatus?.available
+                    ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                    : hearthStatus?.configured
+                    ? 'bg-red-50 text-red-600 border border-red-200'
+                    : 'bg-gray-100 text-gray-500 border border-gray-200 hover:border-orange-300 hover:text-orange-600 cursor-pointer'
+                )}
+                title={
+                  hearthStatus?.available
+                    ? `Hearth: ${hearthStatus.cluster_count} clusters, ${hearthStatus.total_gpus} GPUs`
+                    : hearthStatus?.configured
+                    ? `Hearth: ${hearthStatus?.error || 'Connection error'}`
+                    : 'Click to connect Hearth'
+                }
+              >
+                <FireIcon className="h-3.5 w-3.5" />
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className={clsx(
+                    'relative inline-flex rounded-full h-1.5 w-1.5',
+                    hearthStatus?.available ? 'bg-green-500' : hearthStatus?.configured ? 'bg-red-400' : 'bg-gray-400'
+                  )} />
+                </span>
+              </button>
               <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200" />
               {authed ? (
                 <div className="flex items-center gap-3">
@@ -216,6 +331,7 @@ export default function Layout() {
       </div>
 
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+      <HearthConnectModal open={hearthConnectOpen} onClose={() => setHearthConnectOpen(false)} />
     </div>
   )
 }

@@ -9,7 +9,11 @@ import type {
   WorkloadsResponse,
   Reservation, 
   ReservationListResponse,
-  CalendarEvent 
+  CalendarEvent,
+  HearthCluster,
+  HearthClusterListResponse,
+  HearthStatus,
+  HearthConnectResponse,
 } from '../types'
 import { createLogger } from '../utils/logger'
 import { getBasicAuthHeader } from '../stores/authStore'
@@ -185,6 +189,37 @@ export const reservationApi = {
 
   getCurrentUser: async (clusterId: string): Promise<{ occupied: boolean; current_user?: { user_name: string; team?: string; title: string; start_time: string; end_time: string } }> => {
     const { data } = await api.get(`/reservations/cluster/${clusterId}/current`)
+    return data
+  },
+}
+
+export const hearthApi = {
+  getStatus: async (): Promise<HearthStatus> => {
+    const { data } = await api.get('/hearth/status')
+    return data
+  },
+
+  connect: async (file: File): Promise<HearthConnectResponse> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await api.post('/hearth/connect', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data
+  },
+
+  disconnect: async (): Promise<HearthConnectResponse> => {
+    const { data } = await api.post('/hearth/disconnect')
+    return data
+  },
+
+  listClusters: async (): Promise<HearthClusterListResponse> => {
+    const { data } = await api.get('/hearth/clusters')
+    return data
+  },
+
+  getCluster: async (name: string): Promise<HearthCluster> => {
+    const { data } = await api.get(`/hearth/clusters/${name}`)
     return data
   },
 }

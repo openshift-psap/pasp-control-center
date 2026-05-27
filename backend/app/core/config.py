@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin"
+
+    HEARTH_ENABLED: bool = True
+    HEARTH_NAMESPACE: str = "hearth"
+    HEARTH_KUBECONFIG_PATH: Optional[str] = None
     
     class Config:
         env_file = ".env"

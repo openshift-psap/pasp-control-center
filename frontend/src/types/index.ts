@@ -172,3 +172,65 @@ export interface WorkloadsResponse {
   total_pods: number
   total_deployments: number
 }
+
+// Hearth integration types
+export interface HearthGPU {
+  vendor: string
+  model: string
+  short_name: string
+  count: number
+  node_count?: number
+}
+
+export interface HearthHardware {
+  gpus: HearthGPU[]
+  total_gpus: number
+  last_discovery?: string
+  consecutive_failures: number
+  last_error?: string
+}
+
+export interface HearthCondition {
+  type: string
+  status: string
+  last_transition_time?: string
+  reason?: string
+  message?: string
+}
+
+export interface HearthCluster {
+  name: string
+  kubeconfig_secret: string
+  owner?: string
+  ttl?: string
+  gpu_discovery_interval?: string
+  hardware?: HearthHardware
+  kubeconfig_status?: string
+  locked: boolean
+  lock_expires_at?: string
+  owner_set_at?: string
+  lock_job_name?: string
+  gpu_summary?: string
+  conditions: HearthCondition[]
+  created_at?: string
+}
+
+export interface HearthClusterListResponse {
+  clusters: HearthCluster[]
+  total: number
+  available: boolean
+}
+
+export interface HearthStatus {
+  available: boolean
+  configured: boolean
+  cluster_count: number
+  total_gpus: number
+  locked_clusters: number
+  error?: string
+}
+
+export interface HearthConnectResponse {
+  success: boolean
+  message: string
+}
