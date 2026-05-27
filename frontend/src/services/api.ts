@@ -3,10 +3,18 @@ import type {
   Cluster, 
   ClusterStatus, 
   ClusterListResponse, 
+  ClusterTopology,
+  OcpDetails,
+  Operator,
+  WorkloadsResponse,
   Reservation, 
   ReservationListResponse,
   CalendarEvent 
 } from '../types'
+import { createLogger } from '../utils/logger'
+import { getBasicAuthHeader } from '../stores/authStore'
+
+const logger = createLogger('API')
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -15,15 +23,27 @@ const api = axios.create({
   },
 })
 
-// Interceptor to extract error messages from API responses
+api.interceptors.request.use((config) => {
+  if (config.method && config.method !== 'get') {
+    const authHeader = getBasicAuthHeader()
+    if (authHeader) {
+      config.headers.Authorization = authHeader
+    }
+  }
+  return config
+})
+
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    logger.debug('API response:', response.config.method?.toUpperCase(), response.config.url, response.status)
+    return response
+  },
   (error) => {
-    // Extract the detail message from FastAPI error responses
     const detail = error.response?.data?.detail
     if (detail) {
       error.message = detail
     }
+    logger.error('API error:', error.config?.method?.toUpperCase(), error.config?.url, error.response?.status, error.message)
     return Promise.reject(error)
   }
 )
@@ -137,7 +157,7 @@ export const reservationApi = {
     return data
   },
 
-  create: async (reservation: Omit<Reservation, 'id' | 'status' | 'created_at' | 'updated_at'>): Promise<Reservation> => {
+  create: async (reservation: Omit<Reservation, 'id' | 'status' | 'created_at' | 'updated_at' | 'color'>): Promise<Reservation> => {
     const { data } = await api.post('/reservations', reservation)
     return data
   },
@@ -165,6 +185,17 @@ export const reservationApi = {
 
   getCurrentUser: async (clusterId: string): Promise<{ occupied: boolean; current_user?: { user_name: string; team?: string; title: string; start_time: string; end_time: string } }> => {
     const { data } = await api.get(`/reservations/cluster/${clusterId}/current`)
+    return data
+  },
+}
+
+export const authApi = {
+  check: async (username: string, password: string): Promise<{ authenticated: boolean; username: string }> => {
+    const { data } = await api.get('/auth/check', {
+      headers: {
+        Authorization: 'Basic ' + btoa(`${username}:${password}`),
+      },
+    })
     return data
   },
 }

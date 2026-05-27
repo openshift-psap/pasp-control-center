@@ -51,14 +51,19 @@ function TopologyVisualization({
       infra: 'from-amber-500 to-orange-600',
     }
     const glows = {
-      control: 'shadow-violet-500/30',
-      worker: 'shadow-cyan-500/30',
-      infra: 'shadow-amber-500/30',
+      control: 'hover:shadow-violet-500/30',
+      worker: 'hover:shadow-cyan-500/30',
+      infra: 'hover:shadow-amber-500/30',
     }
     const borders = {
       control: 'border-violet-500/30',
       worker: 'border-cyan-500/30',
       infra: 'border-amber-500/30',
+    }
+    const rings = {
+      control: 'ring-violet-400',
+      worker: 'ring-cyan-400',
+      infra: 'ring-amber-400',
     }
     
     const isSelected = selectedNode?.name === node.name
@@ -71,8 +76,9 @@ function TopologyVisualization({
           'relative p-4 rounded-xl cursor-pointer transition-all duration-300',
           'bg-slate-900/80 backdrop-blur-sm border',
           isReady ? borders[variant] : 'border-red-500/50',
-          isSelected ? `ring-2 ring-offset-2 ring-offset-slate-950 ring-${variant === 'control' ? 'violet' : variant === 'worker' ? 'cyan' : 'amber'}-400` : '',
-          isReady ? `hover:shadow-lg hover:${glows[variant]}` : 'hover:shadow-lg hover:shadow-red-500/30',
+          isSelected && 'ring-2 ring-offset-2 ring-offset-slate-950',
+          isSelected && rings[variant],
+          isReady ? ['hover:shadow-lg', glows[variant]] : 'hover:shadow-lg hover:shadow-red-500/30',
           'hover:scale-[1.02] hover:-translate-y-0.5'
         )}
       >
@@ -476,7 +482,7 @@ export default function ClusterDetail() {
   const [activeTab, setActiveTab] = useState<'topology' | 'ocp' | 'operators' | 'workloads'>('topology')
 
   const { data: cluster, isLoading: clusterLoading } = useCluster(id!)
-  const { data: status } = useClusterStatus(id!)
+  useClusterStatus(id!) // Keep polling for status updates
   const { data: currentUser } = useCurrentClusterUser(id!)
   const { data: topology, isLoading: topologyLoading } = useClusterTopology(id!)
   const { data: ocpDetails, isLoading: ocpLoading } = useOcpDetails(id!)

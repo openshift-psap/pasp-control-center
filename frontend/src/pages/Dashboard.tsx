@@ -5,8 +5,6 @@ import {
   CpuChipIcon,
   UserGroupIcon,
   CheckCircleIcon,
-  ExclamationCircleIcon,
-  ClockIcon,
 } from '@heroicons/react/24/outline'
 import { useClusters } from '../hooks/useClusters'
 import { useReservations } from '../hooks/useReservations'
@@ -30,7 +28,6 @@ export default function Dashboard() {
 
   const healthyClusters = clusters.filter((c) => c.status === 'healthy').length
   const totalGpus = clusters.reduce((sum, c) => sum + parseInt(c.gpu_count || '0'), 0)
-  const totalNodes = clusters.reduce((sum, c) => sum + parseInt(c.node_count || '0'), 0)
   const activeReservations = reservations.filter((r) => r.status === 'active').length
 
   const stats = [
@@ -63,16 +60,6 @@ export default function Dashboard() {
       href: '/reservations',
     },
   ]
-
-  const todayReservations = reservations.filter((r) => {
-    const start = new Date(r.start_time)
-    const today = new Date()
-    return (
-      start.getDate() === today.getDate() &&
-      start.getMonth() === today.getMonth() &&
-      start.getFullYear() === today.getFullYear()
-    )
-  })
 
   // Separate active and upcoming (scheduled) reservations
   const activeReservationsList = reservations.filter((r) => r.status === 'active')

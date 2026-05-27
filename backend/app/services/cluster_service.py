@@ -1,16 +1,16 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
-from sqlalchemy.orm import selectinload
-from typing import List, Optional, Dict, Any
+from sqlalchemy import select
+from typing import List, Optional
 from datetime import datetime
-import logging
+import os
 
 from app.models.cluster import Cluster, CLUSTER_COLORS
 from app.schemas.cluster import ClusterCreate, ClusterUpdate, ClusterStatus
 from app.services.kubernetes_service import KubernetesService
 from app.core.config import settings
+from app.utils.logger import create_logger
 
-logger = logging.getLogger(__name__)
+logger = create_logger("ClusterService")
 
 
 def get_next_color(existing_count: int) -> str:
@@ -144,6 +144,9 @@ class ClusterService:
         if not cluster:
             return False
         
+        # Store kubeconfig path before deletion
+        kubeconfig_path = cluster.kubeconfig_path
+        
         # Update all reservations: preserve cluster name and cancel active/scheduled ones
         result = await self.db.execute(
             select(Reservation).where(Reservation.cluster_id == cluster_id)
@@ -162,6 +165,14 @@ class ClusterService:
         
         await self.db.delete(cluster)
         await self.db.commit()
+        
+        # Delete kubeconfig file if it exists
+        if kubeconfig_path and os.path.exists(kubeconfig_path):
+            try:
+                os.remove(kubeconfig_path)
+                logger.info("Deleted kubeconfig file:", kubeconfig_path)
+            except OSError as e:
+                logger.warn("Failed to delete kubeconfig file:", kubeconfig_path, e)
         
         return True
 
@@ -199,7 +210,7 @@ class ClusterService:
                 resource_usage=resource_usage
             )
         except Exception as e:
-            logger.error(f"Error refreshing cluster status: {e}")
+            logger.error("Error refreshing cluster status:", e)
             cluster.status = "error"
             cluster.last_health_check = datetime.utcnow()
             await self.db.commit()

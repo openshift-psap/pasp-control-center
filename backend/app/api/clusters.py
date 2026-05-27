@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-import logging
 
 from app.core.database import get_db
+from app.core.auth import require_auth
 from app.services.cluster_service import ClusterService
 from app.services.kubernetes_service import KubernetesService
 from app.schemas.cluster import (
@@ -13,9 +13,73 @@ from app.schemas.cluster import (
     ClusterStatus,
     ClusterListResponse
 )
+from app.utils.logger import create_logger
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = create_logger("ClustersAPI")
+
+
+# Static routes must be registered before dynamic /{cluster_id} routes
+@router.post("/validate-kubeconfig")
+async def validate_kubeconfig(
+    file: UploadFile = File(...),
+    _user: str = Depends(require_auth),
+):
+    content = await file.read()
+    try:
+        kubeconfig_content = content.decode('utf-8')
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid file encoding")
+    
+    result = KubernetesService.parse_kubeconfig(kubeconfig_content)
+    
+    if not result.get("valid"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    
+    return result
+
+
+from pydantic import BaseModel
+
+class CredentialsLogin(BaseModel):
+    api_server_url: str
+    username: str
+    password: str
+
+
+@router.post("/test-credentials")
+async def test_credentials(
+    credentials: CredentialsLogin,
+    _user: str = Depends(require_auth),
+):
+    """
+    Test if credentials can connect to an OpenShift cluster.
+    Does not save anything, just validates the connection.
+    """
+    import tempfile
+    import os
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = await KubernetesService.login_with_credentials(
+            api_server=credentials.api_server_url,
+            username=credentials.username,
+            password=credentials.password,
+            storage_path=tmpdir,
+            cluster_name="test-connection"
+        )
+        
+        if result.get("success"):
+            kubeconfig_path = result.get("kubeconfig_path")
+            if kubeconfig_path and os.path.exists(kubeconfig_path):
+                os.remove(kubeconfig_path)
+            
+            return {
+                "valid": True,
+                "api_server": result.get("api_server"),
+                "auth_type": result.get("auth_type")
+            }
+        else:
+            raise HTTPException(status_code=400, detail=result.get("error"))
 
 
 @router.get("", response_model=ClusterListResponse)
@@ -36,7 +100,8 @@ async def list_clusters(
 @router.post("", response_model=ClusterResponse, status_code=201)
 async def create_cluster(
     cluster_data: ClusterCreate,
-    db: AsyncSession = Depends(get_db)
+    _user: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ):
     service = ClusterService(db)
     
@@ -69,7 +134,8 @@ async def get_cluster(
 async def update_cluster(
     cluster_id: str,
     cluster_data: ClusterUpdate,
-    db: AsyncSession = Depends(get_db)
+    _user: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ):
     service = ClusterService(db)
     cluster = await service.update_cluster(cluster_id, cluster_data)
@@ -83,7 +149,8 @@ async def update_cluster(
 @router.delete("/{cluster_id}", status_code=204)
 async def delete_cluster(
     cluster_id: str,
-    db: AsyncSession = Depends(get_db)
+    _user: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ):
     service = ClusterService(db)
     deleted = await service.delete_cluster(cluster_id)
@@ -124,7 +191,8 @@ async def refresh_cluster_status(
 async def upload_kubeconfig(
     cluster_id: str,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    _user: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ):
     service = ClusterService(db)
     
@@ -143,37 +211,12 @@ async def upload_kubeconfig(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/validate-kubeconfig")
-async def validate_kubeconfig(
-    file: UploadFile = File(...)
-):
-    content = await file.read()
-    try:
-        kubeconfig_content = content.decode('utf-8')
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid file encoding")
-    
-    result = KubernetesService.parse_kubeconfig(kubeconfig_content)
-    
-    if not result.get("valid"):
-        raise HTTPException(status_code=400, detail=result.get("error"))
-    
-    return result
-
-
-from pydantic import BaseModel
-
-class CredentialsLogin(BaseModel):
-    api_server_url: str
-    username: str
-    password: str
-
-
 @router.post("/{cluster_id}/login", response_model=ClusterResponse)
 async def login_with_credentials(
     cluster_id: str,
     credentials: CredentialsLogin,
-    db: AsyncSession = Depends(get_db)
+    _user: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Login to an existing cluster using kubeadmin credentials.
@@ -218,7 +261,8 @@ async def login_with_credentials(
 async def reauthenticate_cluster(
     cluster_id: str,
     credentials: CredentialsLogin,
-    db: AsyncSession = Depends(get_db)
+    _user: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Re-authenticate to a cluster with fresh credentials.
@@ -350,36 +394,3 @@ async def get_cluster_workloads(
         return workloads
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/test-credentials")
-async def test_credentials(credentials: CredentialsLogin):
-    """
-    Test if credentials can connect to an OpenShift cluster.
-    Does not save anything, just validates the connection.
-    """
-    import tempfile
-    import os
-    
-    with tempfile.TemporaryDirectory() as tmpdir:
-        result = await KubernetesService.login_with_credentials(
-            api_server=credentials.api_server_url,
-            username=credentials.username,
-            password=credentials.password,
-            storage_path=tmpdir,
-            cluster_name="test-connection"
-        )
-        
-        if result.get("success"):
-            # Clean up the temp kubeconfig
-            kubeconfig_path = result.get("kubeconfig_path")
-            if kubeconfig_path and os.path.exists(kubeconfig_path):
-                os.remove(kubeconfig_path)
-            
-            return {
-                "valid": True,
-                "api_server": result.get("api_server"),
-                "auth_type": result.get("auth_type")
-            }
-        else:
-            raise HTTPException(status_code=400, detail=result.get("error"))

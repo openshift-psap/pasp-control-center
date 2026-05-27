@@ -1,14 +1,11 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
-from enum import Enum
 
-
-class ReservationStatusEnum(str, Enum):
-    SCHEDULED = "scheduled"
-    ACTIVE = "active"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
+# Import the status enum from the model to ensure consistency
+from app.models.reservation import (
+    ReservationStatus as ReservationStatusEnum
+)
 
 
 class ReservationBase(BaseModel):

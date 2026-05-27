@@ -3,7 +3,6 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import datetime, timedelta
-import logging
 
 from app.models.reservation import Reservation, ReservationStatus
 from app.models.cluster import Cluster
@@ -13,8 +12,9 @@ from app.schemas.reservation import (
     ReservationResponse,
     CalendarEvent
 )
+from app.utils.logger import create_logger
 
-logger = logging.getLogger(__name__)
+logger = create_logger("ReservationService")
 
 
 class ReservationService:
@@ -287,18 +287,14 @@ class ReservationService:
         )
         return result.scalar_one_or_none()
 
-    async def update_reservation_statuses(self):
+    async def update_reservation_statuses(self) -> dict:
+        """Update reservation statuses based on current time.
+        Returns a dict with counts of updated reservations."""
         now = datetime.utcnow()
+        activated = 0
+        completed = 0
         
-        await self.db.execute(
-            select(Reservation).where(
-                and_(
-                    Reservation.status == ReservationStatus.SCHEDULED,
-                    Reservation.start_time <= now,
-                    Reservation.end_time > now
-                )
-            )
-        )
+        # Transition SCHEDULED -> ACTIVE for reservations that have started
         scheduled_to_active = await self.db.execute(
             select(Reservation).where(
                 and_(
@@ -310,7 +306,10 @@ class ReservationService:
         )
         for reservation in scheduled_to_active.scalars():
             reservation.status = ReservationStatus.ACTIVE
+            reservation.updated_at = now
+            activated += 1
         
+        # Transition SCHEDULED/ACTIVE -> COMPLETED for reservations that have ended
         active_to_complete = await self.db.execute(
             select(Reservation).where(
                 and_(
@@ -324,5 +323,11 @@ class ReservationService:
         )
         for reservation in active_to_complete.scalars():
             reservation.status = ReservationStatus.COMPLETED
+            reservation.updated_at = now
+            completed += 1
         
-        await self.db.commit()
+        if activated > 0 or completed > 0:
+            await self.db.commit()
+            logger.info("Updated reservation statuses:", activated, "activated,", completed, "completed")
+        
+        return {"activated": activated, "completed": completed}

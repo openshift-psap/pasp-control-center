@@ -1,7 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { clusterApi } from '../services/api'
-import type { Cluster, ClusterStatus, ClusterTopology, OcpDetails, Operator, WorkloadsResponse } from '../types'
+import type { Cluster } from '../types'
 import toast from 'react-hot-toast'
+import { createLogger } from '../utils/logger'
+
+const logger = createLogger('Clusters')
 
 export function useClusters(activeOnly = false) {
   return useQuery({
@@ -32,11 +35,13 @@ export function useCreateCluster() {
 
   return useMutation({
     mutationFn: clusterApi.create,
-    onSuccess: () => {
+    onSuccess: (data) => {
+      logger.info('Cluster created:', data.name)
       queryClient.invalidateQueries({ queryKey: ['clusters'] })
       toast.success('Cluster created successfully')
     },
     onError: (error: Error) => {
+      logger.error('Failed to create cluster:', error)
       toast.error(`Failed to create cluster: ${error.message}`)
     },
   })
@@ -64,11 +69,13 @@ export function useDeleteCluster() {
 
   return useMutation({
     mutationFn: clusterApi.delete,
-    onSuccess: () => {
+    onSuccess: (_data, clusterId) => {
+      logger.info('Cluster deleted:', clusterId)
       queryClient.invalidateQueries({ queryKey: ['clusters'] })
       toast.success('Cluster removed from Control Center')
     },
     onError: (error: Error) => {
+      logger.error('Failed to delete cluster:', error)
       toast.error(`Failed to remove cluster: ${error.message}`)
     },
   })
@@ -79,7 +86,7 @@ export function useRefreshClusterStatus() {
 
   return useMutation({
     mutationFn: clusterApi.refreshStatus,
-    onSuccess: (data, id) => {
+    onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['clusterStatus', id] })
       queryClient.invalidateQueries({ queryKey: ['clusters'] })
       toast.success('Cluster status refreshed')

@@ -1,17 +1,20 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useState, useEffect, useCallback } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { Dialog, Transition } from '@headlessui/react'
 import {
   Bars3Icon,
-  XMarkIcon,
   HomeIcon,
   ServerStackIcon,
   CalendarDaysIcon,
   ClipboardDocumentListIcon,
   BeakerIcon,
   ChartBarIcon,
+  LockClosedIcon,
+  LockOpenIcon,
 } from '@heroicons/react/24/outline'
 import clsx from 'clsx'
+import LoginModal from './LoginModal'
+import { isAuthenticated, getCredentials, clearCredentials } from '../stores/authStore'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
@@ -24,7 +27,20 @@ const navigation = [
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [authed, setAuthed] = useState(isAuthenticated())
   const location = useLocation()
+
+  const syncAuth = useCallback(() => setAuthed(isAuthenticated()), [])
+
+  useEffect(() => {
+    window.addEventListener('auth-change', syncAuth)
+    return () => window.removeEventListener('auth-change', syncAuth)
+  }, [syncAuth])
+
+  const handleLogout = () => {
+    clearCredentials()
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -59,7 +75,7 @@ export default function Layout() {
                       <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary-600 to-primary-700 flex items-center justify-center">
                         <span className="text-white font-bold text-sm">P</span>
                       </div>
-                      <span className="text-xl font-bold text-gray-900">PASP Control Center</span>
+                      <span className="text-xl font-bold text-gray-900">PSAP Control Center</span>
                     </div>
                   </div>
                   <nav className="flex flex-1 flex-col">
@@ -105,7 +121,7 @@ export default function Layout() {
                 <span className="text-white font-bold text-lg">P</span>
               </div>
               <div>
-                <h1 className="text-lg font-bold text-gray-900">PASP Control Center</h1>
+                <h1 className="text-lg font-bold text-gray-900">PSAP Control Center</h1>
                 <p className="text-xs text-gray-500">Cluster Management</p>
               </div>
             </div>
@@ -128,7 +144,7 @@ export default function Layout() {
                     <item.icon
                       className={clsx(
                         'h-5 w-5 shrink-0 transition-colors',
-                        location.pathname === item.href ? 'text-primary-600' : 'text-gray-400 group-hover:text-primary-500'
+                        location.pathname.startsWith(item.href) ? 'text-primary-600' : 'text-gray-400 group-hover:text-primary-500'
                       )}
                     />
                     {item.name}
@@ -168,11 +184,28 @@ export default function Layout() {
             <div className="flex flex-1" />
             <div className="flex items-center gap-x-4 lg:gap-x-6">
               <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200" />
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
-                  <span className="text-sm font-medium text-primary-700">AC</span>
+              {authed ? (
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1.5 text-sm text-gray-600">
+                    <LockClosedIcon className="h-4 w-4 text-green-500" />
+                    <span className="hidden sm:inline font-medium">{getCredentials()?.username}</span>
+                  </span>
+                  <button
+                    onClick={handleLogout}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Sign Out
+                  </button>
                 </div>
-              </div>
+              ) : (
+                <button
+                  onClick={() => setLoginOpen(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-500 shadow-sm transition-colors"
+                >
+                  <LockOpenIcon className="h-4 w-4" />
+                  Sign In
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -181,6 +214,8 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </div>
   )
 }

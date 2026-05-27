@@ -4,14 +4,15 @@ from typing import Dict, Any, List, Optional
 import yaml
 import os
 import tempfile
-import logging
 import httpx
 import ssl
 import urllib3
 
+from app.utils.logger import create_logger
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-logger = logging.getLogger(__name__)
+logger = create_logger("KubernetesService")
 
 
 class KubernetesService:
@@ -20,17 +21,22 @@ class KubernetesService:
         self._api_client = None
         self._core_v1 = None
         self._version_api = None
+        self._configuration = None
 
     def _load_config(self):
         if not os.path.exists(self.kubeconfig_path):
             raise FileNotFoundError(f"Kubeconfig not found: {self.kubeconfig_path}")
         
-        config.load_kube_config(config_file=self.kubeconfig_path)
+        # Create an isolated configuration instead of using the global default
+        # This prevents race conditions when multiple clusters are accessed concurrently
+        self._configuration = client.Configuration()
+        config.load_kube_config(
+            config_file=self.kubeconfig_path,
+            client_configuration=self._configuration
+        )
+        self._configuration.retries = 1
         
-        configuration = client.Configuration.get_default_copy()
-        configuration.retries = 1
-        
-        self._api_client = client.ApiClient(configuration)
+        self._api_client = client.ApiClient(configuration=self._configuration)
         self._core_v1 = client.CoreV1Api(self._api_client)
         self._version_api = client.VersionApi(self._api_client)
 
@@ -75,10 +81,10 @@ class KubernetesService:
                 "api_server": self._get_api_server_url()
             }
         except ApiException as e:
-            logger.error(f"Kubernetes API error: {e}")
+            logger.error("Kubernetes API error:", e)
             return {"status": "error", "error": str(e)}
         except Exception as e:
-            logger.error(f"Error getting cluster info: {e}")
+            logger.error("Error getting cluster info:", e)
             return {"status": "unreachable", "error": str(e)}
 
     def _get_node_status(self, node) -> str:
@@ -109,7 +115,7 @@ class KubernetesService:
                         if cluster.get('name') == cluster_name:
                             return cluster.get('cluster', {}).get('server')
         except Exception as e:
-            logger.error(f"Error reading API server URL: {e}")
+            logger.error("Error reading API server URL:", e)
         return None
 
     def get_namespaces(self) -> List[str]:
@@ -117,7 +123,7 @@ class KubernetesService:
             namespaces = self.core_v1.list_namespace()
             return [ns.metadata.name for ns in namespaces.items]
         except Exception as e:
-            logger.error(f"Error getting namespaces: {e}")
+            logger.error("Error getting namespaces:", e)
             return []
 
     def get_resource_usage(self) -> Dict[str, Any]:
@@ -151,7 +157,7 @@ class KubernetesService:
                 "total_nodes": len(nodes.items)
             }
         except Exception as e:
-            logger.error(f"Error getting resource usage: {e}")
+            logger.error("Error getting resource usage:", e)
             return {}
 
     def _parse_memory(self, memory_str: str) -> int:
@@ -272,7 +278,7 @@ class KubernetesService:
                 "zones": list(set(n["zone"] for n in topology_nodes if n["zone"] != "unknown")),
             }
         except Exception as e:
-            logger.error(f"Error getting topology: {e}")
+            logger.error("Error getting topology:", e)
             return {"nodes": [], "error": str(e)}
 
     def _get_node_ip(self, node, ip_type: str) -> Optional[str]:
@@ -285,6 +291,10 @@ class KubernetesService:
 
     def get_ocp_details(self) -> Dict[str, Any]:
         """Get OpenShift-specific cluster details."""
+        # Ensure client is initialized
+        if self._api_client is None:
+            self._load_config()
+        
         try:
             custom_api = client.CustomObjectsApi(self._api_client)
             
@@ -323,7 +333,7 @@ class KubernetesService:
                     for c in conditions
                 ]
             except Exception as e:
-                logger.warning(f"Could not get ClusterVersion: {e}")
+                logger.warn("Could not get ClusterVersion:", e)
             
             # Get Infrastructure
             try:
@@ -338,7 +348,7 @@ class KubernetesService:
                 ocp_details["api_server_url"] = infra.get("status", {}).get("apiServerURL")
                 ocp_details["api_server_internal"] = infra.get("status", {}).get("apiServerInternalURI")
             except Exception as e:
-                logger.warning(f"Could not get Infrastructure: {e}")
+                logger.warn("Could not get Infrastructure:", e)
             
             # Get Network config
             try:
@@ -352,7 +362,7 @@ class KubernetesService:
                 ocp_details["cluster_network"] = network.get("status", {}).get("clusterNetwork", [])
                 ocp_details["service_network"] = network.get("status", {}).get("serviceNetwork", [])
             except Exception as e:
-                logger.warning(f"Could not get Network: {e}")
+                logger.warn("Could not get Network:", e)
             
             # Get Ingress
             try:
@@ -364,15 +374,19 @@ class KubernetesService:
                 )
                 ocp_details["ingress_domain"] = ingress.get("spec", {}).get("domain")
             except Exception as e:
-                logger.warning(f"Could not get Ingress: {e}")
+                logger.warn("Could not get Ingress:", e)
             
             return ocp_details
         except Exception as e:
-            logger.error(f"Error getting OCP details: {e}")
+            logger.error("Error getting OCP details:", e)
             return {"error": str(e)}
 
     def get_operators(self) -> List[Dict[str, Any]]:
         """Get installed operators (ClusterServiceVersions)."""
+        # Ensure client is initialized
+        if self._api_client is None:
+            self._load_config()
+        
         try:
             custom_api = client.CustomObjectsApi(self._api_client)
             
@@ -403,11 +417,11 @@ class KubernetesService:
                         "provider": csv.get("spec", {}).get("provider", {}).get("name"),
                     })
             except Exception as e:
-                logger.warning(f"Could not get CSVs: {e}")
+                logger.warn("Could not get CSVs:", e)
             
             return sorted(operators, key=lambda x: x.get("name", ""))
         except Exception as e:
-            logger.error(f"Error getting operators: {e}")
+            logger.error("Error getting operators:", e)
             return []
 
     def get_workloads(self, namespace: Optional[str] = None) -> Dict[str, Any]:
@@ -477,7 +491,7 @@ class KubernetesService:
                 "total_deployments": len(deployments_list),
             }
         except Exception as e:
-            logger.error(f"Error getting workloads: {e}")
+            logger.error("Error getting workloads:", e)
             return {"pods": [], "deployments": [], "error": str(e)}
 
     @staticmethod
@@ -535,7 +549,7 @@ class KubernetesService:
         This uses the OAuth token request flow.
         """
         api_server = api_server.rstrip('/')
-        logger.info(f"Attempting login to: {api_server} with user: {username}")
+        logger.info("Attempting login to:", api_server, "with user:", username)
         
         # Validate that this looks like an API server URL, not a console URL
         if 'console' in api_server.lower() and 'api.' not in api_server.lower():
@@ -562,11 +576,11 @@ class KubernetesService:
                         try:
                             oauth_metadata = metadata_resp.json()
                             oauth_server = oauth_metadata.get('issuer', '').rstrip('/')
-                            logger.info(f"Found OAuth server: {oauth_server}")
+                            logger.info("Found OAuth server:", oauth_server)
                         except Exception:
                             pass
                 except Exception as e:
-                    logger.warning(f"Could not fetch OAuth metadata: {e}")
+                    logger.warn("Could not fetch OAuth metadata:", e)
 
                 access_token = None
                 
@@ -599,7 +613,7 @@ class KubernetesService:
                             access_token = csrf_token
                             logger.info("Got token via X-CSRF-Token header")
                 except Exception as e:
-                    logger.warning(f"OAuth authorize failed: {e}")
+                    logger.warn("OAuth authorize failed:", e)
 
                 # Method 2: Request token via oauthaccesstokens API
                 if not access_token:
@@ -636,9 +650,9 @@ class KubernetesService:
                             # Need proper OAuth - this is expected for most clusters
                             pass
                         else:
-                            logger.warning(f"API check returned {api_check.status_code}")
+                            logger.warn("API check returned", api_check.status_code)
                     except Exception as e:
-                        logger.warning(f"Basic auth check failed: {e}")
+                        logger.warn("Basic auth check failed:", e)
 
                 # Method 3: Try direct token request to OAuth server  
                 if not access_token and oauth_server:
@@ -665,7 +679,7 @@ class KubernetesService:
                                         access_token = fragment_params['access_token'][0]
                                         logger.info("Got token via challenge flow")
                     except Exception as e:
-                        logger.warning(f"Challenge flow failed: {e}")
+                        logger.warn("Challenge flow failed:", e)
 
                 if not access_token:
                     return {
@@ -674,7 +688,7 @@ class KubernetesService:
                     }
 
                 # Try to create a service account with a long-lived token
-                logger.info(f"Creating service account for persistent access to {cluster_name}")
+                logger.info("Creating service account for persistent access to", cluster_name)
                 sa_result = await KubernetesService.create_service_account_token(
                     api_server, access_token, cluster_name
                 )
@@ -683,11 +697,11 @@ class KubernetesService:
                 if sa_result.get("success") and sa_result.get("token"):
                     final_token = sa_result["token"]
                     auth_type = "service-account"
-                    logger.info(f"Using service account token for {cluster_name} (long-lived)")
+                    logger.info("Using service account token for", cluster_name, "(long-lived)")
                 else:
                     final_token = access_token
                     auth_type = "oauth-token"
-                    logger.warning(f"Using OAuth token for {cluster_name} (will expire)")
+                    logger.warn("Using OAuth token for", cluster_name, "(will expire)")
 
                 # Generate kubeconfig with the token
                 kubeconfig_content = KubernetesService._generate_kubeconfig_token(
@@ -707,15 +721,13 @@ class KubernetesService:
                 }
 
         except httpx.ConnectError as e:
-            logger.error(f"Connection error to {api_server}: {e}")
+            logger.error("Connection error to", api_server, e)
             return {"success": False, "error": f"Cannot connect to {api_server}. Please verify the URL is correct and accessible. Error: {str(e)}"}
         except httpx.TimeoutException as e:
-            logger.error(f"Timeout connecting to {api_server}: {e}")
+            logger.error("Timeout connecting to", api_server, e)
             return {"success": False, "error": f"Connection timed out to {api_server}. The cluster may be unreachable."}
         except Exception as e:
-            import traceback
-            logger.error(f"Error during login to {api_server}: {e}")
-            logger.error(traceback.format_exc())
+            logger.error("Error during login to", api_server, e)
             return {"success": False, "error": f"Login error: {str(e)}"}
 
     @staticmethod
@@ -783,7 +795,7 @@ class KubernetesService:
                     json=ns_body
                 )
                 if ns_resp.status_code not in [200, 201, 409]:  # 409 = already exists
-                    logger.warning(f"Failed to create namespace: {ns_resp.status_code} {ns_resp.text[:200]}")
+                    logger.warn("Failed to create namespace:", ns_resp.status_code, ns_resp.text[:200])
                 
                 # Step 2: Create ServiceAccount
                 sa_body = {
@@ -804,7 +816,7 @@ class KubernetesService:
                     json=sa_body
                 )
                 if sa_resp.status_code not in [200, 201, 409]:
-                    logger.warning(f"Failed to create SA: {sa_resp.status_code} {sa_resp.text[:200]}")
+                    logger.warn("Failed to create SA:", sa_resp.status_code, sa_resp.text[:200])
                 
                 # Step 3: Create ClusterRoleBinding for cluster-reader permissions
                 crb_name = f"pasp-control-center-{cluster_name.replace(' ', '-').lower()[:20]}"
@@ -835,7 +847,7 @@ class KubernetesService:
                     json=crb_body
                 )
                 if crb_resp.status_code not in [200, 201, 409]:
-                    logger.warning(f"Failed to create CRB: {crb_resp.status_code} {crb_resp.text[:200]}")
+                    logger.warn("Failed to create CRB:", crb_resp.status_code, crb_resp.text[:200])
                 
                 # Step 4: Create a Secret for the service account token (legacy approach for long-lived token)
                 secret_name = f"{sa_name}-token"
@@ -865,7 +877,7 @@ class KubernetesService:
                     # Secret exists, fetch it
                     pass
                 elif secret_resp.status_code not in [200, 201]:
-                    logger.warning(f"Failed to create secret: {secret_resp.status_code} {secret_resp.text[:200]}")
+                    logger.warn("Failed to create secret:", secret_resp.status_code, secret_resp.text[:200])
                 
                 # Step 5: Wait briefly and fetch the token from the secret
                 import asyncio
@@ -882,7 +894,7 @@ class KubernetesService:
                     if token_b64:
                         import base64
                         sa_token = base64.b64decode(token_b64).decode('utf-8')
-                        logger.info(f"Successfully created service account token for {cluster_name}")
+                        logger.info("Successfully created service account token for", cluster_name)
                         return {
                             "success": True,
                             "token": sa_token,
@@ -908,7 +920,7 @@ class KubernetesService:
                     token_data = token_req_resp.json()
                     sa_token = token_data.get("status", {}).get("token")
                     if sa_token:
-                        logger.info(f"Successfully created service account token via TokenRequest for {cluster_name}")
+                        logger.info("Successfully created service account token via TokenRequest for", cluster_name)
                         return {
                             "success": True,
                             "token": sa_token,
@@ -919,7 +931,7 @@ class KubernetesService:
                 
                 # If we get here, SA creation worked but token retrieval failed
                 # Return the original token as fallback
-                logger.warning(f"Could not retrieve SA token, using original token")
+                logger.warn("Could not retrieve SA token, using original token")
                 return {
                     "success": False,
                     "error": "Could not retrieve service account token",
@@ -927,7 +939,7 @@ class KubernetesService:
                 }
                 
         except Exception as e:
-            logger.error(f"Error creating service account: {e}")
+            logger.error("Error creating service account:", e)
             return {
                 "success": False,
                 "error": str(e),

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Link } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Clusters from './pages/Clusters'
@@ -7,6 +7,18 @@ import Reservations from './pages/Reservations'
 import Calendar from './pages/Calendar'
 import Testing from './pages/Testing'
 import Results from './pages/Results'
+
+function NotFound() {
+  return (
+    <div className="text-center py-12">
+      <h1 className="text-4xl font-bold text-gray-900">404</h1>
+      <p className="mt-2 text-lg text-gray-600">Page not found</p>
+      <Link to="/dashboard" className="mt-4 inline-block text-primary-600 hover:text-primary-700">
+        Go to Dashboard
+      </Link>
+    </div>
+  )
+}
 
 function App() {
   return (
@@ -20,6 +32,7 @@ function App() {
         <Route path="calendar" element={<Calendar />} />
         <Route path="testing" element={<Testing />} />
         <Route path="results" element={<Results />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   )

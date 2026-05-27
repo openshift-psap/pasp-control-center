@@ -189,18 +189,15 @@ export default function Calendar() {
       <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Legend</h2>
         <div className="flex flex-wrap gap-4">
-          {clusters.map((cluster, index) => {
-            const colors = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F97316', '#14B8A6']
-            return (
-              <div key={cluster.id} className="flex items-center gap-2">
-                <div
-                  className="h-4 w-4 rounded"
-                  style={{ backgroundColor: colors[index % colors.length] }}
-                />
-                <span className="text-sm text-gray-700">{cluster.name}</span>
-              </div>
-            )
-          })}
+          {clusters.map((cluster) => (
+            <div key={cluster.id} className="flex items-center gap-2">
+              <div
+                className="h-4 w-4 rounded"
+                style={{ backgroundColor: cluster.color || '#3B82F6' }}
+              />
+              <span className="text-sm text-gray-700">{cluster.name}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

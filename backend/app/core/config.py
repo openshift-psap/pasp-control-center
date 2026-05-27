@@ -4,11 +4,11 @@ import os
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "PASP Control Center"
+    PROJECT_NAME: str = "PSAP Control Center"
     VERSION: str = "1.0.0"
     API_V1_PREFIX: str = "/api/v1"
     
-    DATABASE_URL: str = "sqlite+aiosqlite:///./pasp_control_center.db"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./psap_control_center.db"
     
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     KUBECONFIG_STORAGE_PATH: str = "./kubeconfigs"
     
     MLFLOW_BASE_URL: Optional[str] = None
+    
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "admin"
     
     class Config:
         env_file = ".env"

@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { reservationApi } from '../services/api'
 import type { Reservation } from '../types'
 import toast from 'react-hot-toast'
+import { createLogger } from '../utils/logger'
+
+const logger = createLogger('Reservations')
 
 export function useReservations(params?: {
   cluster_id?: string
@@ -46,12 +49,17 @@ export function useCreateReservation() {
 
   return useMutation({
     mutationFn: reservationApi.create,
-    onSuccess: () => {
+    onSuccess: (data) => {
+      logger.info('Reservation created:', data.title, 'by', data.user_name)
       queryClient.invalidateQueries({ queryKey: ['reservations'] })
       queryClient.invalidateQueries({ queryKey: ['calendarEvents'] })
+      if (data.cluster_id) {
+        queryClient.invalidateQueries({ queryKey: ['currentUser', data.cluster_id] })
+      }
       toast.success('Reservation created successfully')
     },
     onError: (error: Error) => {
+      logger.error('Failed to create reservation:', error)
       toast.error(`Failed to create reservation: ${error.message}`)
     },
   })
@@ -67,6 +75,9 @@ export function useUpdateReservation() {
       queryClient.invalidateQueries({ queryKey: ['reservations'] })
       queryClient.invalidateQueries({ queryKey: ['calendarEvents'] })
       queryClient.invalidateQueries({ queryKey: ['reservation', data.id] })
+      if (data.cluster_id) {
+        queryClient.invalidateQueries({ queryKey: ['currentUser', data.cluster_id] })
+      }
       toast.success('Reservation updated successfully')
     },
     onError: (error: Error) => {
@@ -83,6 +94,7 @@ export function useDeleteReservation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reservations'] })
       queryClient.invalidateQueries({ queryKey: ['calendarEvents'] })
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] })
       toast.success('Reservation deleted successfully')
     },
     onError: (error: Error) => {
@@ -97,12 +109,17 @@ export function useCancelReservation() {
   return useMutation({
     mutationFn: reservationApi.cancel,
     onSuccess: (data) => {
+      logger.info('Reservation cancelled:', data.id)
       queryClient.invalidateQueries({ queryKey: ['reservations'] })
       queryClient.invalidateQueries({ queryKey: ['calendarEvents'] })
       queryClient.invalidateQueries({ queryKey: ['reservation', data.id] })
+      if (data.cluster_id) {
+        queryClient.invalidateQueries({ queryKey: ['currentUser', data.cluster_id] })
+      }
       toast.success('Reservation cancelled')
     },
     onError: (error: Error) => {
+      logger.error('Failed to cancel reservation:', error)
       toast.error(`Failed to cancel reservation: ${error.message}`)
     },
   })

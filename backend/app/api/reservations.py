@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from datetime import datetime, timedelta
-import logging
 
 from app.core.database import get_db
+from app.core.auth import require_auth
 from app.services.reservation_service import ReservationService
 from app.models.reservation import ReservationStatus
 from app.schemas.reservation import (
@@ -14,9 +14,10 @@ from app.schemas.reservation import (
     ReservationListResponse,
     CalendarEvent
 )
+from app.utils.logger import create_logger
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = create_logger("ReservationsAPI")
 
 
 @router.get("", response_model=ReservationListResponse)
@@ -77,7 +78,8 @@ async def list_reservations(
 @router.post("", response_model=ReservationResponse, status_code=201)
 async def create_reservation(
     reservation_data: ReservationCreate,
-    db: AsyncSession = Depends(get_db)
+    _user: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ):
     service = ReservationService(db)
     
@@ -174,7 +176,8 @@ async def get_reservation(
 async def update_reservation(
     reservation_id: str,
     reservation_data: ReservationUpdate,
-    db: AsyncSession = Depends(get_db)
+    _user: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ):
     service = ReservationService(db)
     
@@ -208,7 +211,8 @@ async def update_reservation(
 @router.delete("/{reservation_id}", status_code=204)
 async def delete_reservation(
     reservation_id: str,
-    db: AsyncSession = Depends(get_db)
+    _user: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ):
     service = ReservationService(db)
     deleted = await service.delete_reservation(reservation_id)
@@ -220,7 +224,8 @@ async def delete_reservation(
 @router.post("/{reservation_id}/cancel", response_model=ReservationResponse)
 async def cancel_reservation(
     reservation_id: str,
-    db: AsyncSession = Depends(get_db)
+    _user: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
 ):
     service = ReservationService(db)
     reservation = await service.cancel_reservation(reservation_id)

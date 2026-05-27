@@ -5,6 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import App from './App'
 import './index.css'
+import { setLogLevelFromEnv, createLogger } from './utils/logger'
+
+setLogLevelFromEnv()
+const logger = createLogger('Main')
+logger.info('PSAP Control Center starting up')
 
 const queryClient = new QueryClient({
   defaultOptions: {
